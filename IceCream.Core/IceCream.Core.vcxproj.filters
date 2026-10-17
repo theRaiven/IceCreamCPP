@@ -1,0 +1,117 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <ItemGroup>
+    <Filter Include="Geometry">
+      <UniqueIdentifier>{F08672AC-8633-54E2-B573-DE0CB2A4D06D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Models">
+      <UniqueIdentifier>{17309469-B858-593B-B4BA-E6BCB8209823}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Profiles">
+      <UniqueIdentifier>{DD980968-2633-562E-935B-F22E20F5D96B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Services">
+      <UniqueIdentifier>{C131A9AA-2098-5C9B-B8B9-C6B3116F0C88}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Geometry\Plane3D.cpp">
+      <Filter>Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\Point2D.cpp">
+      <Filter>Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\Point3D.cpp">
+      <Filter>Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\TriangleMesh.cpp">
+      <Filter>Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\Vector3D.cpp">
+      <Filter>Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Models\IceCreamBody.cpp">
+      <Filter>Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Models\SectionContour.cpp">
+      <Filter>Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Models\SectionResult.cpp">
+      <Filter>Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Profiles\IceCreamProfile.cpp">
+      <Filter>Profiles</Filter>
+    </ClCompile>
+    <ClCompile Include="Profiles\PowerProfile.cpp">
+      <Filter>Profiles</Filter>
+    </ClCompile>
+    <ClCompile Include="Profiles\SphericalCapProfile.cpp">
+      <Filter>Profiles</Filter>
+    </ClCompile>
+    <ClCompile Include="Services\MeshSectionCalculator.cpp">
+      <Filter>Services</Filter>
+    </ClCompile>
+    <ClCompile Include="Services\SectionAreaCalculator.cpp">
+      <Filter>Services</Filter>
+    </ClCompile>
+    <ClCompile Include="Services\SurfaceMeshBuilder.cpp">
+      <Filter>Services</Filter>
+    </ClCompile>
+    <ClCompile Include="Services\VolumeCalculator.cpp">
+      <Filter>Services</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Geometry\Plane3D.h">
+      <Filter>Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\Point2D.h">
+      <Filter>Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\Point3D.h">
+      <Filter>Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\TriangleMesh.h">
+      <Filter>Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\Vector3D.h">
+      <Filter>Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Models\IceCreamBody.h">
+      <Filter>Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Models\IceCreamParameters.h">
+      <Filter>Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Models\SectionContour.h">
+      <Filter>Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Models\SectionResult.h">
+      <Filter>Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Profiles\IRadialProfile.h">
+      <Filter>Profiles</Filter>
+    </ClInclude>
+    <ClInclude Include="Profiles\IceCreamProfile.h">
+      <Filter>Profiles</Filter>
+    </ClInclude>
+    <ClInclude Include="Profiles\PowerProfile.h">
+      <Filter>Profiles</Filter>
+    </ClInclude>
+    <ClInclude Include="Profiles\SphericalCapProfile.h">
+      <Filter>Profiles</Filter>
+    </ClInclude>
+    <ClInclude Include="Services\MeshSectionCalculator.h">
+      <Filter>Services</Filter>
+    </ClInclude>
+    <ClInclude Include="Services\SectionAreaCalculator.h">
+      <Filter>Services</Filter>
+    </ClInclude>
+    <ClInclude Include="Services\SurfaceMeshBuilder.h">
+      <Filter>Services</Filter>
+    </ClInclude>
+    <ClInclude Include="Services\VolumeCalculator.h">
+      <Filter>Services</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

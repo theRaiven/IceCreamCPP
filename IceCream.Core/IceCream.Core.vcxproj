@@ -1,0 +1,87 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{1A673C58-F6B7-5EEC-B5DC-0A0AC8722F9E}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>IceCream</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemGroup>
+    <ClCompile Include="Geometry\Plane3D.cpp" />
+    <ClCompile Include="Geometry\Point2D.cpp" />
+    <ClCompile Include="Geometry\Point3D.cpp" />
+    <ClCompile Include="Geometry\TriangleMesh.cpp" />
+    <ClCompile Include="Geometry\Vector3D.cpp" />
+    <ClCompile Include="Models\IceCreamBody.cpp" />
+    <ClCompile Include="Models\SectionContour.cpp" />
+    <ClCompile Include="Models\SectionResult.cpp" />
+    <ClCompile Include="Profiles\IceCreamProfile.cpp" />
+    <ClCompile Include="Profiles\PowerProfile.cpp" />
+    <ClCompile Include="Profiles\SphericalCapProfile.cpp" />
+    <ClCompile Include="Services\MeshSectionCalculator.cpp" />
+    <ClCompile Include="Services\SectionAreaCalculator.cpp" />
+    <ClCompile Include="Services\SurfaceMeshBuilder.cpp" />
+    <ClCompile Include="Services\VolumeCalculator.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Geometry\Plane3D.h" />
+    <ClInclude Include="Geometry\Point2D.h" />
+    <ClInclude Include="Geometry\Point3D.h" />
+    <ClInclude Include="Geometry\TriangleMesh.h" />
+    <ClInclude Include="Geometry\Vector3D.h" />
+    <ClInclude Include="Models\IceCreamBody.h" />
+    <ClInclude Include="Models\IceCreamParameters.h" />
+    <ClInclude Include="Models\SectionContour.h" />
+    <ClInclude Include="Models\SectionResult.h" />
+    <ClInclude Include="Profiles\IRadialProfile.h" />
+    <ClInclude Include="Profiles\IceCreamProfile.h" />
+    <ClInclude Include="Profiles\PowerProfile.h" />
+    <ClInclude Include="Profiles\SphericalCapProfile.h" />
+    <ClInclude Include="Services\MeshSectionCalculator.h" />
+    <ClInclude Include="Services\SectionAreaCalculator.h" />
+    <ClInclude Include="Services\SurfaceMeshBuilder.h" />
+    <ClInclude Include="Services\VolumeCalculator.h" />
+  </ItemGroup>
+</Project>

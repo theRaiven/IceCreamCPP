@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+ <ItemGroup>
+  <Filter Include="ViewModels"><UniqueIdentifier>{52633f60-cf7a-5575-b7ac-251f40f92528}</UniqueIdentifier></Filter>
+ </ItemGroup>
+ <ItemGroup>
+  <ClCompile Include="CoreTests.cpp"></ClCompile>
+  <ClCompile Include="..\IceCream.App\ViewModels\MainViewModel.cpp"><Filter>ViewModels</Filter></ClCompile>
+ </ItemGroup>
+</Project>

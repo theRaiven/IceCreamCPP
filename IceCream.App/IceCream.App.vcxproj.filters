@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <ItemGroup>
+    <ClCompile Include="ViewModels\MainViewModel.cpp" />
+    <ClCompile Include="Views\MainWindow.cpp" />
+    <ClCompile Include="Views\ParametersPanel.cpp" />
+    <ClCompile Include="Views\SceneView.cpp" />
+    <ClCompile Include="Views\SectionView.cpp" />
+    <ClCompile Include="Views\Graphics\ShaderSource.cpp" />
+    <ClCompile Include="Views\Graphics\MeshRenderer.cpp" />
+    <ClCompile Include="Views\Graphics\LineRenderer.cpp" />
+    <ClCompile Include="Views\Graphics\OrbitCamera.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ViewModels\MainViewModel.h" />
+    <ClInclude Include="Views\MainWindow.h" />
+    <ClInclude Include="Views\ParametersPanel.h" />
+    <ClInclude Include="Views\SceneView.h" />
+    <ClInclude Include="Views\SectionView.h" />
+    <ClInclude Include="Views\Graphics\ShaderSource.h" />
+    <ClInclude Include="Views\Graphics\MeshRenderer.h" />
+    <ClInclude Include="Views\Graphics\LineRenderer.h" />
+    <ClInclude Include="Views\Graphics\OrbitCamera.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Views\Shaders\Mesh.vert" />
+    <None Include="Views\Shaders\Mesh.frag" />
+    <None Include="Views\Shaders\Line.vert" />
+    <None Include="Views\Shaders\Line.frag" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{590F7A6E-8CA8-58A1-BD7F-C0024F44D7B8}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>IceCream</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)ThirdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)ThirdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IceCream.Core\IceCream.Core.vcxproj">
+      <Project>{1A673C58-F6B7-5EEC-B5DC-0A0AC8722F9E}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="ViewModels\MainViewModel.cpp" />
+    <ClCompile Include="Views\Graphics\LineRenderer.cpp" />
+    <ClCompile Include="Views\Graphics\MeshRenderer.cpp" />
+    <ClCompile Include="Views\Graphics\OrbitCamera.cpp" />
+    <ClCompile Include="Views\Graphics\ShaderSource.cpp" />
+    <ClCompile Include="Views\MainWindow.cpp" />
+    <ClCompile Include="Views\ParametersPanel.cpp" />
+    <ClCompile Include="Views\SceneView.cpp" />
+    <ClCompile Include="Views\SectionView.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ViewModels\MainViewModel.h" />
+    <ClInclude Include="Views\Graphics\LineRenderer.h" />
+    <ClInclude Include="Views\Graphics\MeshRenderer.h" />
+    <ClInclude Include="Views\Graphics\OrbitCamera.h" />
+    <ClInclude Include="Views\Graphics\ShaderSource.h" />
+    <ClInclude Include="Views\MainWindow.h" />
+    <ClInclude Include="Views\ParametersPanel.h" />
+    <ClInclude Include="Views\SceneView.h" />
+    <ClInclude Include="Views\SectionView.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Views\Shaders\Line.frag" />
+    <None Include="Views\Shaders\Line.vert" />
+    <None Include="Views\Shaders\Mesh.frag" />
+    <None Include="Views\Shaders\Mesh.vert" />
+  </ItemGroup>
+</Project>
