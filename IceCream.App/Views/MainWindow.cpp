@@ -1,261 +1,225 @@
 #include "MainWindow.h"
-#include "Graphics/ShaderSource.h"
-#include "../ViewModels/MainViewModel.h"
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
+#include <algorithm>
 #include <iostream>
-#include <vector>
 
 namespace IceCream::App::Views
 {
     int MainWindow::Run(int argc, char** argv)
     {
-        constexpr int InitialWidth = 1280;
-        constexpr int InitialHeight = 720;
-
-        ViewModels::MainViewModel viewModel;
-
-        const auto& mesh = viewModel.Body().Mesh();
-
-        std::cout << "Vertices: " << mesh.Vertices().size() << '\n';
-        std::cout << "Triangles: " << mesh.TriangleCount() << '\n';
+        instance_ = this;
 
         glutInit(&argc, argv);
 
-        // OpenGL 3.3 Core.
+        // Совместимый профиль: шейдеры 3.3 для геометрии и GLUT-текст на панели.
         glutInitContextVersion(3, 3);
-        glutInitContextProfile(GLUT_CORE_PROFILE);
-
-        // Цветовой буфер и двойная буферизация.
-        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-
-        glutInitWindowSize(InitialWidth, InitialHeight);
+        glutInitContextProfile(GLUT_COMPATIBILITY_PROFILE);
+        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_STENCIL);
+        glutInitWindowSize(windowWidth_, windowHeight_);
         glutCreateWindow("IceCream");
-
-        // При закрытии окна возвращаемся из главного цикла.
         glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
-        // Загружаем функции OpenGL после создания контекста.
         glewExperimental = GL_TRUE;
-        GLenum glewResult = glewInit();
-
-        glEnable(GL_DEPTH_TEST);
+        const GLenum glewResult = glewInit();
 
         if (glewResult != GLEW_OK)
         {
             std::cerr << "GLEW error: " << glewGetErrorString(glewResult) << '\n';
-
             glutDestroyWindow(glutGetWindow());
-
             return 1;
         }
 
-        shaderProgram_ = CreateShaderProgram();
+        glEnable(GL_DEPTH_TEST);
 
-        glUseProgram(shaderProgram_);
+        parametersPanel_.Initialize(viewModel_, [this] { ReloadMeshIfChanged(); glutPostRedisplay(); });
+        sceneView_.Initialize();
+        sectionView_.Initialize();
+        ReloadMesh();
+        UpdateLayout();
 
-        const GLint joinHeightLocation = glGetUniformLocation(shaderProgram_, "uJoinHeight");
-        const float joinHeight = static_cast<float>(viewModel.Body().Parameters().BaseHeight);
-
-        glUniform1f(joinHeightLocation, joinHeight);
-
-        glUseProgram(0);
-
-        InitializeBuffers(mesh);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-        glClearColor(0.12f, 0.15f, 0.20f, 1.0f);
-
-        // Регистрируем обработчики.
         glutDisplayFunc(Display);
         glutReshapeFunc(Reshape);
         glutMouseFunc(Mouse);
         glutMotionFunc(MouseMotion);
+        glutMouseWheelFunc(MouseWheel);
+        glutKeyboardFunc(Keyboard);
+        glutSpecialFunc(Special);
         glutCloseFunc(Close);
 
-        Reshape(InitialWidth, InitialHeight);
         glutMainLoop();
-        
         return 0;
     }
-    /// <summary>
-    /// Отображает кадр.
-    /// </summary>
+
+    void MainWindow::UpdateLayout()
+    {
+        constexpr int PanelWidth = 400;
+        const int availableWidth = std::max(windowWidth_ - PanelWidth, 2);
+        const int splitX = availableWidth * 58 / 100;
+        sceneView_.SetViewport(PanelWidth, 0, splitX, windowHeight_);
+        sectionView_.SetViewport(PanelWidth + splitX, 0, availableWidth - splitX, windowHeight_);
+        parametersPanel_.SetViewport(0, 0, PanelWidth, windowHeight_);
+    }
+
+    void MainWindow::ReloadMesh()
+    {
+        sceneView_.UploadMesh(viewModel_.Body().Mesh());
+        uploadedRevision_ = viewModel_.GeometryRevision();
+        std::cout << "Vertices: " << viewModel_.Body().Mesh().Vertices().size()
+                  << "  Triangles: " << viewModel_.Body().Mesh().TriangleCount()
+                  << "  Volume: " << viewModel_.Volume() << '\n';
+    }
+
+    void MainWindow::ReloadMeshIfChanged()
+    {
+        if (viewModel_.GeometryRevision() != uploadedRevision_) ReloadMesh();
+    }
+
     void MainWindow::Display()
     {
+        glClearColor(0.10f, 0.11f, 0.14f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Перемещаем центр тела в начало координат.
-        // При высоте рожка 3 и высоте шапки 1 середина находится на Z = 2.
-        const glm::mat4 model = glm::translate(
-            glm::mat4(1.0f),
-            glm::vec3(0.0f, 0.0f, -2.0f));
-
-        // Камера смотрит на начало координат. Ось Z направлена вверх.
-        const float yaw = glm::radians(cameraYaw_);
-        const float pitch = glm::radians(cameraPitch_);
-
-        const glm::vec3 cameraPosition(
-            cameraDistance_ * glm::cos(pitch) * glm::cos(yaw),
-            cameraDistance_ * glm::cos(pitch) * glm::sin(yaw),
-            cameraDistance_ * glm::sin(pitch));
-
-        const glm::mat4 view = glm::lookAt(
-            cameraPosition,
-            glm::vec3(0.0f, 0.0f, 0.0f),
-            glm::vec3(0.0f, 0.0f, 1.0f));
-
-        // Перспектива: удалённые части выглядят меньше.
-        const glm::mat4 projection = glm::perspective(
-            glm::radians(45.0f),
-            aspectRatio_,
-            0.1f,
-            100.0f);
-
-        glUseProgram(shaderProgram_);
-
-        const GLint modelLocation = glGetUniformLocation(shaderProgram_, "uModel");
-        const GLint viewLocation = glGetUniformLocation(shaderProgram_, "uView");
-        const GLint projectionLocation = glGetUniformLocation(shaderProgram_, "uProjection");
-
-        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(projection));
-
-        glBindVertexArray(vao_);
-
-        glDrawElements(GL_TRIANGLES, indexCount_, GL_UNSIGNED_INT, nullptr);
-
-        glBindVertexArray(0);
-        glUseProgram(0);
+        instance_->sceneView_.Render(instance_->viewModel_);
+        instance_->sectionView_.Render(instance_->viewModel_);
+        instance_->parametersPanel_.Render(instance_->viewModel_);
 
         glutSwapBuffers();
     }
-    /// <summary>
-    /// Обновляет область рисования при изменении размера окна.
-    /// </summary>
+
     void MainWindow::Reshape(int width, int height)
     {
-        if (width < 1)
+        if (width < 1200 || height < 800)
         {
-            width = 1;
+            glutReshapeWindow(std::max(width, 1200), std::max(height, 800));
+            return;
         }
-
-        if (height < 1)
-        {
-            height = 1;
-        }
-
-        aspectRatio_ = static_cast<float>(width) / height;
-
-        glViewport(0, 0, width, height);
+        instance_->windowWidth_ = std::max(width, 1);
+        instance_->windowHeight_ = std::max(height, 1);
+        instance_->UpdateLayout();
         glutPostRedisplay();
-    }
-
-    void MainWindow::InitializeBuffers(const Core::Geometry::TriangleMesh& mesh)
-    {
-        std::vector<float> vertices;
-        vertices.reserve(mesh.Vertices().size() * 3);
-
-        for (const auto& point : mesh.Vertices())
-        {
-            vertices.push_back(static_cast<float>(point.X));
-            vertices.push_back(static_cast<float>(point.Y));
-            vertices.push_back(static_cast<float>(point.Z));
-        }
-
-        std::vector<GLuint> indices;
-        indices.reserve(mesh.Indices().size());
-
-        for (int index : mesh.Indices())
-        {
-            indices.push_back(static_cast<GLuint>(index));
-        }
-
-        indexCount_ = static_cast<GLsizei>(indices.size());
-
-        glGenVertexArrays(1, &vao_);
-        glGenBuffers(1, &vbo_);
-        glGenBuffers(1, &ebo_);
-
-        glBindVertexArray(vao_);
-
-        // Загружаем координаты вершин.
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-
-        // Каждая вершина содержит три числа: X, Y, Z.
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-
-        glEnableVertexAttribArray(0);
-
-        // Загружаем номера вершин, образующих треугольники.
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
-
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-    }
-
-    void MainWindow::Close()
-    {
-        glDeleteBuffers(1, &ebo_);
-        glDeleteBuffers(1, &vbo_);
-        glDeleteVertexArrays(1, &vao_);
-        glDeleteProgram(shaderProgram_);
-
-        ebo_ = 0;
-        vbo_ = 0;
-        vao_ = 0;
-        shaderProgram_ = 0;
-        indexCount_ = 0;
     }
 
     void MainWindow::Mouse(int button, int state, int x, int y)
     {
-        if (button == GLUT_LEFT_BUTTON)
+        if (button == GLUT_RIGHT_BUTTON)
         {
-            isRotating_ = (state == GLUT_DOWN);
+            if (state == GLUT_DOWN && instance_->sceneView_.Contains(x, y, instance_->windowHeight_))
+                instance_->sceneView_.OnPanDown(x, y);
+            else if (state == GLUT_UP)
+                instance_->sceneView_.OnPanUp();
+            glutPostRedisplay();
+            return;
+        }
+        if (button != GLUT_LEFT_BUTTON)
+        {
+            return;
+        }
 
-            lastMouseX_ = x;
-            lastMouseY_ = y;
+        const bool panelHandled = instance_->parametersPanel_.Mouse(state == GLUT_DOWN, x, y,
+            instance_->windowHeight_, instance_->viewModel_);
+        instance_->ReloadMeshIfChanged();
+        glutPostRedisplay();
+        if (panelHandled)
+        {
+            instance_->sceneView_.OnMouseUp();
+            return;
+        }
+
+        if (state == GLUT_DOWN && instance_->sceneView_.Contains(x, y, instance_->windowHeight_))
+        {
+            instance_->sceneView_.OnMouseDown(x, y);
+        }
+        else
+        {
+            instance_->sceneView_.OnMouseUp();
         }
     }
 
     void MainWindow::MouseMotion(int x, int y)
     {
-        if (!isRotating_)
+        if (!instance_->parametersPanel_.Motion(x, instance_->viewModel_))
+            instance_->sceneView_.OnMouseMove(x, y);
+        glutPostRedisplay();
+    }
+
+    void MainWindow::MouseWheel(int, int direction, int x, int y)
+    {
+        if (instance_->sceneView_.Contains(x, y, instance_->windowHeight_))
         {
+            instance_->sceneView_.OnWheel(direction);
+            glutPostRedisplay();
+        }
+    }
+
+    void MainWindow::Keyboard(unsigned char key, int, int)
+    {
+        auto& model = instance_->viewModel_;
+        if (instance_->parametersPanel_.Keyboard(key, model))
+        {
+            instance_->ReloadMeshIfChanged();
+            glutPostRedisplay();
+            return;
+        }
+        const auto& parameters = model.Parameters();
+        if(model.IsHeightField() && key!=' ' && key!='c' && key!='C') return;
+        constexpr double Step = 0.1;
+
+        try {
+        switch (key)
+        {
+        case 'q': case 'Q': model.SetBaseHeight(parameters.BaseHeight + Step); instance_->ReloadMesh(); break;
+        case 'a': case 'A': model.SetBaseHeight(parameters.BaseHeight - Step); instance_->ReloadMesh(); break;
+        case 'w': case 'W': model.SetJoinRadius(parameters.JoinRadius + Step); instance_->ReloadMesh(); break;
+        case 's': case 'S': model.SetJoinRadius(parameters.JoinRadius - Step); instance_->ReloadMesh(); break;
+        case 'e': case 'E': model.SetBaseExponent(parameters.BaseExponent + Step); instance_->ReloadMesh(); break;
+        case 'd': case 'D': model.SetBaseExponent(parameters.BaseExponent - Step); instance_->ReloadMesh(); break;
+        case 'r': case 'R': model.SetCapHeight(parameters.CapHeight + Step); instance_->ReloadMesh(); break;
+        case 'f': case 'F': model.SetCapHeight(parameters.CapHeight - Step); instance_->ReloadMesh(); break;
+        case 'c': case 'C': instance_->sceneView_.ResetCamera(); break;
+        case ' ':
+            model.ResetDefaults();
+            instance_->sceneView_.ResetCamera();
+            instance_->ReloadMesh();
+            break;
+        default:
             return;
         }
 
-        const int deltaX = x - lastMouseX_;
-        const int deltaY = y - lastMouseY_;
+        } catch (const std::exception& error) { std::cerr << error.what() << '\n'; }
+        glutPostRedisplay();
+    }
 
-        lastMouseX_ = x;
-        lastMouseY_ = y;
+    void MainWindow::Special(int key, int, int)
+    {
+        auto& model = instance_->viewModel_;
+        if (instance_->parametersPanel_.Editing()) return;
+        constexpr double OffsetStep = 0.05;
+        constexpr double AngleStep = 5.0;
 
-        constexpr float Sensitivity = 0.4f;
-
-        cameraYaw_ -= deltaX * Sensitivity;
-        cameraPitch_ += deltaY * Sensitivity;
-
-        if (cameraPitch_ > 89.0f)
+        switch (key)
         {
-            cameraPitch_ = 89.0f;
-        }
-
-        if (cameraPitch_ < -89.0f)
-        {
-            cameraPitch_ = -89.0f;
+        case GLUT_KEY_LEFT:  model.SetSectionPosition(2, std::max(-20.0, model.SectionPosition().Z - OffsetStep)); break;
+        case GLUT_KEY_RIGHT: model.SetSectionPosition(2, std::min(20.0, model.SectionPosition().Z + OffsetStep)); break;
+        case GLUT_KEY_UP:    model.SetSectionRotation(1, model.SectionRotation().Y + AngleStep); break;
+        case GLUT_KEY_DOWN:  model.SetSectionRotation(1, model.SectionRotation().Y - AngleStep); break;
+        default:
+            return;
         }
 
         glutPostRedisplay();
+    }
+
+    void MainWindow::Close()
+    {
+        instance_->parametersPanel_.Destroy();
+        instance_->sceneView_.Destroy();
+        instance_->sectionView_.Destroy();
     }
 }

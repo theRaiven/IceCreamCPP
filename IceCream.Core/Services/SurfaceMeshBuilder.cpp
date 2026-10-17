@@ -2,6 +2,24 @@
 
 namespace IceCream::Core::Services
 {
+    TriangleMesh SurfaceMeshBuilder::Build(const IRadialProfile& profile, int heightSegments, int radialSegments) const
+    {
+        if(heightSegments < 2 || radialSegments < 3) throw std::invalid_argument("Invalid mesh resolution");
+        std::vector<Point3D> vertices;
+        std::vector<int> indices;
+        auto first=CreateRing(profile,profile.MinZ(),radialSegments,vertices);
+        if(first.size()>1) {
+            int center=static_cast<int>(vertices.size()); vertices.push_back({0,0,profile.MinZ()});
+            ConnectRing({center},first,indices);
+        }
+        auto last=BuildPart(profile,heightSegments,radialSegments,first,vertices,indices);
+        if(last.size()>1) {
+            int center=static_cast<int>(vertices.size()); vertices.push_back({0,0,profile.MaxZ()});
+            ConnectRing(last,{center},indices);
+        }
+        return TriangleMesh(std::move(vertices),std::move(indices));
+    }
+
 	TriangleMesh SurfaceMeshBuilder::Build(const IceCreamProfile& profile, int baseSegments, int capSegments, int radialSegments) const
 	{
 		if (baseSegments < 1)

@@ -24,6 +24,8 @@ namespace IceCream::Core::Services
 		/// <returns> Треугольная сетка </returns>
 		TriangleMesh Build(const IceCreamProfile& profile, int baseSegments = 40, int capSegments = 40, int radialSegments = 64) const;
 
+		TriangleMesh Build(const IRadialProfile& profile, int heightSegments = 160, int radialSegments = 96) const;
+
 	private:
 		/// <summary>
 		/// Строит основание мороженого на основе профиля.

@@ -28,7 +28,7 @@ namespace IceCream::Core::Services
 		/// <param name="profile"> Профиль мороженого. </param>
 		/// <param name="intervals"> Чётное положительное количество промежутков. </param>
 		/// <returns> Объём мороженого. </returns>
-		double Calculate(const IRadialProfile& profile, int intervals) const;
+		double Calculate(const IRadialProfile& profile, int intervals = 1000) const;
 
 	private:
 		static double GetSectionArea(const IRadialProfile& profile, double z);

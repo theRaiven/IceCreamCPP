@@ -1,69 +1,45 @@
 #pragma once
-#include <GL/glew.h>
-#include "../../IceCream.Core/Geometry/TriangleMesh.h"
+
+#include "../ViewModels/MainViewModel.h"
+#include "SceneView.h"
+#include "SectionView.h"
+#include "ParametersPanel.h"
 
 namespace IceCream::App::Views
 {
     /// <summary>
-    /// Главное окно приложения.
+    /// Главное окно GLUT: раскладка 3D-сцены, сечения и панели параметров.
     /// </summary>
     class MainWindow
     {
     private:
-        inline static GLuint shaderProgram_ = 0;
-        inline static GLuint vao_ = 0;
-        inline static GLuint vbo_ = 0;
+        inline static MainWindow* instance_ = nullptr;
 
-        inline static GLuint ebo_ = 0;
-        inline static GLsizei indexCount_ = 0;
+        ViewModels::MainViewModel viewModel_;
+        SceneView sceneView_;
+        SectionView sectionView_;
+        ParametersPanel parametersPanel_;
+        int windowWidth_ = 1440;
+        int windowHeight_ = 820;
 
-        inline static float aspectRatio_ = 1.0f;
-        
-        // камера-мэн
-        inline static float cameraYaw_ = -58.0f;
-        inline static float cameraPitch_ = 23.0f;
-        inline static float cameraDistance_ = 10.0f;
+        void UpdateLayout();
+        void ReloadMesh();
+        void ReloadMeshIfChanged();
+        std::uint64_t uploadedRevision_ = 0;
 
-        inline static bool isRotating_ = false;
-        inline static int lastMouseX_ = 0;
-        inline static int lastMouseY_ = 0;
-
-        /// <summary>
-        /// Обрабатывает нажатие и отпускание кнопки мыши.
-        /// </summary>
+        static void Display();
+        static void Reshape(int width, int height);
         static void Mouse(int button, int state, int x, int y);
-
-        /// <summary>
-        /// Вращает камеру при перемещении мыши с зажатой кнопкой.
-        /// </summary>
         static void MouseMotion(int x, int y);
-
-        /// <summary>
-        /// Загружает вершины и индексы сетки в OpenGL.
-        /// </summary>
-        static void InitializeBuffers(const Core::Geometry::TriangleMesh& mesh);
-
-        /// <summary>
-        /// Освобождает графические ресурсы перед закрытием окна.
-        /// </summary>
+        static void MouseWheel(int wheel, int direction, int x, int y);
+        static void Keyboard(unsigned char key, int x, int y);
+        static void Special(int key, int x, int y);
         static void Close();
+
     public:
         /// <summary>
         /// Создаёт окно и запускает обработку событий.
         /// </summary>
         int Run(int argc, char** argv);
-
-    private:
-        /// <summary>
-        /// Отображает кадр.
-        /// </summary>
-        static void Display();
-
-        /// <summary>
-        /// Обновляет область рисования при изменении размера окна.
-        /// </summary>
-        static void Reshape(int width, int height);
-
-
     };
 }

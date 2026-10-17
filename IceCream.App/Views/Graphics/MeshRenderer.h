@@ -1,1 +1,27 @@
 #pragma once
+
+#include <GL/glew.h>
+#include "../../../IceCream.Core/Geometry/TriangleMesh.h"
+#include <glm/glm.hpp>
+
+namespace IceCream::App::Views::Graphics
+{
+    /// <summary>
+    /// Загружает треугольную сетку в OpenGL и рисует её шейдером.
+    /// </summary>
+    class MeshRenderer
+    {
+    private:
+        GLuint shaderProgram_ = 0;
+        GLuint vao_ = 0;
+        GLuint vbo_ = 0;
+        GLuint ebo_ = 0;
+        GLsizei indexCount_ = 0;
+
+    public:
+        void Initialize();
+        void Upload(const Core::Geometry::TriangleMesh& mesh);
+        void Draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, float joinHeight, const glm::vec4& cutPlane, bool ghost, bool transparentPositive, bool hasParts) const;
+        void Destroy();
+    };
+}

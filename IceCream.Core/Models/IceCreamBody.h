@@ -15,7 +15,7 @@ namespace IceCream::Core::Models
 	{
 	private:
 		IceCreamParameters parameters_;
-		IceCreamProfile profile_;
+		std::shared_ptr<const Profiles::IRadialProfile> profile_;
 		TriangleMesh mesh_;
 
 	public:
@@ -24,9 +24,10 @@ namespace IceCream::Core::Models
 			return parameters_;
 		}
 
-		const IceCreamProfile& Profile() const
+		const Profiles::IRadialProfile& Profile() const
 		{
-			return profile_;
+			if (!profile_) throw std::logic_error("This body is not radial");
+            return *profile_;
 		}
 
 		const TriangleMesh& Mesh() const
@@ -34,6 +35,10 @@ namespace IceCream::Core::Models
 			return mesh_;
 		}
 
+        double MinZ() const;
+        double MaxZ() const;
+        IceCreamBody(IceCreamParameters parameters, TriangleMesh mesh);
+		IceCreamBody(IceCreamParameters parameters, std::shared_ptr<const Profiles::IRadialProfile> profile, const SurfaceMeshBuilder& builder);
 		IceCreamBody(IceCreamParameters parameters, const SurfaceMeshBuilder& meshBuilder, int baseSegments = 40, int capSegments = 40, int radialSegments = 64);
 	};
 }

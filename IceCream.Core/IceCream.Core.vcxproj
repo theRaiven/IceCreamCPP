@@ -58,9 +58,11 @@
     <ClCompile Include="Models\SectionContour.cpp" />
     <ClCompile Include="Models\SectionResult.cpp" />
     <ClCompile Include="Profiles\IceCreamProfile.cpp" />
+    <ClCompile Include="Profiles\FormulaProfile.cpp" />
     <ClCompile Include="Profiles\PowerProfile.cpp" />
     <ClCompile Include="Profiles\SphericalCapProfile.cpp" />
     <ClCompile Include="Services\MeshSectionCalculator.cpp" />
+    <ClCompile Include="Services\HeightFieldBuilder.cpp" />
     <ClCompile Include="Services\SectionAreaCalculator.cpp" />
     <ClCompile Include="Services\SurfaceMeshBuilder.cpp" />
     <ClCompile Include="Services\VolumeCalculator.cpp" />
@@ -77,9 +79,11 @@
     <ClInclude Include="Models\SectionResult.h" />
     <ClInclude Include="Profiles\IRadialProfile.h" />
     <ClInclude Include="Profiles\IceCreamProfile.h" />
+    <ClInclude Include="Profiles\FormulaProfile.h" />
     <ClInclude Include="Profiles\PowerProfile.h" />
     <ClInclude Include="Profiles\SphericalCapProfile.h" />
     <ClInclude Include="Services\MeshSectionCalculator.h" />
+    <ClInclude Include="Services\HeightFieldBuilder.h" />
     <ClInclude Include="Services\SectionAreaCalculator.h" />
     <ClInclude Include="Services\SurfaceMeshBuilder.h" />
     <ClInclude Include="Services\VolumeCalculator.h" />
