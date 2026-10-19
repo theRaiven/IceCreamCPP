@@ -1,34 +1,101 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <ItemGroup>
-    <ClCompile Include="ViewModels\MainViewModel.cpp" />
-    <ClCompile Include="Views\MainWindow.cpp" />
-    <ClCompile Include="Views\ParametersPanel.cpp" />
-    <ClCompile Include="Views\SceneView.cpp" />
-    <ClCompile Include="Views\SectionView.cpp" />
-    <ClCompile Include="Views\Graphics\ShaderSource.cpp" />
-    <ClCompile Include="Views\Graphics\MeshRenderer.cpp" />
-    <ClCompile Include="Views\Graphics\LineRenderer.cpp" />
-    <ClCompile Include="Views\Graphics\OrbitCamera.cpp" />
+    <Filter Include="ViewModels">
+      <UniqueIdentifier>{EC9446F6-31C6-54E8-B655-287109B8CD97}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Views">
+      <UniqueIdentifier>{2A2494C7-1758-57D8-A49D-FB563DEDDD0B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Views\Graphics">
+      <UniqueIdentifier>{E53D0E6A-B85E-55C8-94E4-ECF2297CFB72}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Views\Shaders">
+      <UniqueIdentifier>{896CA5C4-2022-52B0-AA87-E430EC38600A}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="ViewModels\MainViewModel.cpp">
+      <Filter>ViewModels</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\Graphics\Render\LineRenderer.cpp">
+      <Filter>Views\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\Graphics\Render\MeshRenderer.cpp">
+      <Filter>Views\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\Graphics\OrbitCamera\OrbitCamera.cpp">
+      <Filter>Views\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\Graphics\ShaderSource\ShaderSource.cpp">
+      <Filter>Views\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\MainWindow.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Editors.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Input.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\SceneView.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\SectionView.cpp">
+      <Filter>Views</Filter>
+    </ClCompile>
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Lighting.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ViewModels\MainViewModel.h" />
-    <ClInclude Include="Views\MainWindow.h" />
-    <ClInclude Include="Views\ParametersPanel.h" />
-    <ClInclude Include="Views\SceneView.h" />
-    <ClInclude Include="Views\SectionView.h" />
-    <ClInclude Include="Views\Graphics\ShaderSource.h" />
-    <ClInclude Include="Views\Graphics\MeshRenderer.h" />
-    <ClInclude Include="Views\Graphics\LineRenderer.h" />
-    <ClInclude Include="Views\Graphics\OrbitCamera.h" />
+    <ClInclude Include="ViewModels\MainViewModel.h">
+      <Filter>ViewModels</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\Graphics\Render\LineRenderer.h">
+      <Filter>Views\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\Graphics\Render\MeshRenderer.h">
+      <Filter>Views\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\Graphics\OrbitCamera\OrbitCamera.h">
+      <Filter>Views\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\Graphics\OrbitCamera\OverlayText.h">
+      <Filter>Views\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\Graphics\ShaderSource\ShaderSource.h">
+      <Filter>Views\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\MainWindow.h">
+      <Filter>Views</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\ParametersPanel\ParametersPanel.h">
+      <Filter>Views</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\SceneView.h">
+      <Filter>Views</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\SectionView.h">
+      <Filter>Views</Filter>
+    </ClInclude>
+    <ClInclude Include="Views\Graphics\OrbitCamera\LightingSettings.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Views\Shaders\Mesh.vert" />
-    <None Include="Views\Shaders\Mesh.frag" />
-    <None Include="Views\Shaders\Line.vert" />
-    <None Include="Views\Shaders\Line.frag" />
+    <None Include="Views\Shaders\Line.frag">
+      <Filter>Views\Shaders</Filter>
+    </None>
+    <None Include="Views\Shaders\Line.vert">
+      <Filter>Views\Shaders</Filter>
+    </None>
+    <None Include="Views\Shaders\Mesh.frag">
+      <Filter>Views\Shaders</Filter>
+    </None>
+    <None Include="Views\Shaders\Mesh.vert">
+      <Filter>Views\Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

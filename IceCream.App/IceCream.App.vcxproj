@@ -78,24 +78,28 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ViewModels\MainViewModel.cpp" />
-    <ClCompile Include="Views\Graphics\LineRenderer.cpp" />
-    <ClCompile Include="Views\Graphics\MeshRenderer.cpp" />
-    <ClCompile Include="Views\Graphics\OrbitCamera.cpp" />
-    <ClCompile Include="Views\Graphics\ShaderSource.cpp" />
+    <ClCompile Include="Views\Graphics\Render\LineRenderer.cpp" />
+    <ClCompile Include="Views\Graphics\Render\MeshRenderer.cpp" />
+    <ClCompile Include="Views\Graphics\OrbitCamera\OrbitCamera.cpp" />
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Lighting.cpp" />
+    <ClCompile Include="Views\Graphics\ShaderSource\ShaderSource.cpp" />
     <ClCompile Include="Views\MainWindow.cpp" />
-    <ClCompile Include="Views\ParametersPanel.cpp" />
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.cpp" />
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Editors.cpp" />
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Input.cpp" />
     <ClCompile Include="Views\SceneView.cpp" />
     <ClCompile Include="Views\SectionView.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ViewModels\MainViewModel.h" />
-    <ClInclude Include="Views\Graphics\LineRenderer.h" />
-    <ClInclude Include="Views\Graphics\MeshRenderer.h" />
-    <ClInclude Include="Views\Graphics\OrbitCamera.h" />
-    <ClInclude Include="Views\Graphics\OverlayText.h" />
-    <ClInclude Include="Views\Graphics\ShaderSource.h" />
+    <ClInclude Include="Views\Graphics\OrbitCamera\LightingSettings.h" />
+    <ClInclude Include="Views\Graphics\Render\LineRenderer.h" />
+    <ClInclude Include="Views\Graphics\Render\MeshRenderer.h" />
+    <ClInclude Include="Views\Graphics\OrbitCamera\OrbitCamera.h" />
+    <ClInclude Include="Views\Graphics\OrbitCamera\OverlayText.h" />
+    <ClInclude Include="Views\Graphics\ShaderSource\ShaderSource.h" />
     <ClInclude Include="Views\MainWindow.h" />
-    <ClInclude Include="Views\ParametersPanel.h" />
+    <ClInclude Include="Views\ParametersPanel\ParametersPanel.h" />
     <ClInclude Include="Views\SceneView.h" />
     <ClInclude Include="Views\SectionView.h" />
   </ItemGroup>

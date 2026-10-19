@@ -11,8 +11,8 @@ out vec3 WorldPosition;
 
 void main()
 {
-    Height = aPosition.z;
-    vec4 position = uModel * vec4(aPosition, 1.0);
-    WorldPosition = position.xyz;
-    gl_Position = uProjection * uView * position;
+	Height = aPosition.z;
+	vec4 position = uModel * vec4(aPosition, 1.0);
+	WorldPosition = position.xyz;
+	gl_Position = uProjection * uView * position;
 }
