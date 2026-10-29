@@ -2,6 +2,8 @@
 
 #include "../Geometry/TriangleMesh.h"
 #include "../Profiles/IceCreamProfile.h"
+#include "../Profiles/TwoPartProfile.h"
+
 #include <limits>
 
 namespace IceCream::Core::Services
@@ -10,6 +12,7 @@ namespace IceCream::Core::Services
 	using Geometry::Point3D;
 	using Profiles::IceCreamProfile;
 	using Profiles::IRadialProfile;
+	using Profiles::TwoPartProfile;
 
 	class SurfaceMeshBuilder
 	{
@@ -23,6 +26,16 @@ namespace IceCream::Core::Services
 		/// <param name="radialSegments"> Количество радиальных сегментов </param>
 		/// <returns> Треугольная сетка </returns>
 		TriangleMesh Build(const IceCreamProfile& profile, int baseSegments = 40, int capSegments = 40, int radialSegments = 64) const;
+
+		/// <summary>
+		/// Строит треугольную сетку для тела, состоящего из двух профилей.
+		/// </summary>
+		/// <param name="profile"> Составной профиль тела </param>
+		/// <param name="firstSegments"> Количество сегментов первой части </param>
+		/// <param name="secondSegments"> Количество сегментов второй части </param>
+		/// <param name="radialSegments"> Количество радиальных сегментов </param>
+		/// <returns> Треугольная сетка </returns>
+		TriangleMesh Build(const TwoPartProfile& profile,int firstSegments = 80, int secondSegments = 80, int radialSegments = 96) const;
 
 		TriangleMesh Build(const IRadialProfile& profile, int heightSegments = 160, int radialSegments = 96) const;
 

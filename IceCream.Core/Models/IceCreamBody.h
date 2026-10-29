@@ -6,10 +6,12 @@
 
 namespace IceCream::Core::Models
 {
-	using Profiles::IceCreamProfile;
+	using Profiles::TwoPartProfile;
+	using Profiles::SphericalCapProfile;
 	using Profiles::PowerProfile;
 	using Geometry::TriangleMesh;
 	using Services::SurfaceMeshBuilder;
+
 
 	class IceCreamBody
 	{

@@ -1,4 +1,5 @@
 #include "FormulaProfile.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -6,128 +7,502 @@
 #include <stdexcept>
 #include <vector>
 
+using namespace std;
+using namespace IceCream::Core::Models;
+
 namespace IceCream::Core::Profiles
 {
     namespace
     {
-        using Function = std::function<double(double,double)>;
+        using Function = function<double(double, double)>;
+
         class Parser
         {
-            const std::string& text_;
-            Models::IceCreamParameters parameters_;
-            size_t position_ = 0;
-            int depth_ = 0;
-            void Space() { while (position_ < text_.size() && std::isspace(static_cast<unsigned char>(text_[position_]))) ++position_; }
-            bool Take(char c) { Space(); if (position_ < text_.size() && text_[position_] == c) { ++position_; return true; } return false; }
+        private:
+            const string& text;
+            IceCreamParameters parameters;
+
+            size_t position = 0;
+            int depth = 0;
+
+            /// <summary>
+            /// обраточка пробелов
+            /// </summary>
+            void Space()
+            {
+                while (position < text.size() && isspace(static_cast<unsigned char>(text[position])))
+                {
+                    position++;
+                }
+            }
+
+            bool Take(char c)
+            {
+                Space();
+
+                if (position < text.size() && text[position] == c)
+                {
+                    position++;
+                    return true;
+                }
+                return false;
+            }
+
             [[noreturn]] void Error(const char* message) const
-            { throw std::invalid_argument(std::string(message) + " (position " + std::to_string(position_ + 1) + ")"); }
+            {
+                throw invalid_argument(string(message) + " (position " + to_string(position + 1) + ")");
+            }
+
             Function Compare()
             {
-                auto a = Sum(); Space();
-                if (position_ >= text_.size() || (text_[position_] != '<' && text_[position_] != '>')) return a;
-                char op = text_[position_++]; bool equal = Take('='); auto b = Sum();
-                return [=](double z,double y) { double left=a(z,y), right=b(z,y); return double(op=='<' ? (equal ? left<=right : left<right) : (equal ? left>=right : left>right)); };
+                auto left = Sum();
+
+                Space();
+
+                if (position >= text.size() || (text[position] != '<' && text[position] != '>'))
+                {
+                    return left;
+                }
+
+                char operation = text[position++];
+                bool equal = Take('=');
+
+                auto right = Sum();
+
+                return [left, right, operation, equal](double z, double y)
+                {
+                    double leftValue = left(z, y);
+                    double rightValue = right(z, y);
+
+                    if (operation == '<')
+                    {
+                        return double(equal ? leftValue <= rightValue : leftValue < rightValue);
+                    }
+
+                    return double(equal ? leftValue >= rightValue : leftValue > rightValue);
+                };
             }
             Function Sum()
             {
-                auto a = Product();
-                for (;;) { if (Take('+')) { auto b=Product(); a=[a,b](double z,double y){return a(z,y)+b(z,y);}; }
-                    else if (Take('-')) { auto b=Product(); a=[a,b](double z,double y){return a(z,y)-b(z,y);}; } else return a; }
+                auto result = Product();
+
+                while (true)
+                {
+                    if (Take('+'))
+                    {
+                        auto right = Product();
+
+                        result = [result, right](double z, double y)
+                        {
+                            return result(z, y) + right(z, y);
+                        };
+                    }
+                    else if (Take('-'))
+                    {
+                        auto right = Product();
+
+                        result = [result, right](double z, double y)
+                        {
+                            return result(z, y) - right(z, y);
+                        };
+                    }
+                    else
+                    {
+                        return result;
+                    }
+                }
             }
             Function Product()
             {
-                auto a=Unary();
-                for (;;) { if (Take('*')) { auto b=Unary(); a=[a,b](double z,double y){return a(z,y)*b(z,y);}; }
-                    else if (Take('/')) { auto b=Unary(); a=[a,b](double z,double y){return a(z,y)/b(z,y);}; } else return a; }
+                auto result = Unary();
+
+                while(true)
+                {
+                    if (Take('*'))
+                    {
+                        auto right = Unary();
+
+                        result = [result, right](double z, double y)
+                        {
+                            return result(z, y) * right(z, y);
+                        };
+                    }
+                    else if (Take('/'))
+                    {
+                        auto right = Unary();
+
+                        result = [result, right](double z, double y)
+                        {
+                            return result(z, y) / right(z, y);
+                        };
+                    }
+                    else
+                    {
+                        return result;
+                    }
+                }
             }
             Function Unary()
             {
-                if (++depth_ > 64) Error("Expression is too deeply nested");
-                Function a;
-                if (Take('+')) a=Unary();
-                else if (Take('-')) { auto b=Unary(); a=[b](double z,double y){return -b(z,y);}; }
-                else { a=Atom(); if (Take('^')) { auto b=Unary(); a=[a,b](double z,double y){return std::pow(a(z,y),b(z,y));}; } }
-                --depth_; return a;
+                ++depth;
+
+                if (depth > 64)
+                {
+                    Error("Expression is too deeply nested");
+                }
+
+                Function result;
+
+                if (Take('+'))
+                {
+                    result = Unary();
+                }
+                else if (Take('-'))
+                {
+                    auto value = Unary();
+
+                    result = [value](double z, double y)
+                    {
+                        return -value(z, y);
+                    };
+                }
+                else
+                {
+                    result = Atom();
+
+                    if (Take('^'))
+                    {
+                        auto exponent = Unary();
+
+                        result = [result, exponent](double z, double y)
+                        {
+                            return pow(result(z, y), exponent(z, y));
+                        };
+                    }
+                }
+
+                --depth;
+                return result;
             }
             Function Atom()
             {
-                if (Take('(')) { auto f=Compare(); if (!Take(')')) Error("Expected )"); return f; }
+                if (Take('('))
+                {
+                    auto result = Compare();
+
+                    if (!Take(')')) Error("Expected )");
+
+                    return result;
+                }
+
                 Space();
-                if (position_ == text_.size()) Error("Expected a value");
-                char c=text_[position_];
-                if (std::isdigit(static_cast<unsigned char>(c)) || c=='.') {
-                    char* end=nullptr; const char* begin=text_.c_str()+position_;
-                    double value=std::strtod(begin,&end);
-                    if (end==begin || !std::isfinite(value)) Error("Invalid number");
-                    position_+=end-begin; return [value](double,double){return value;};
+
+                if (position == text.size())
+                {
+                    Error("Expected a value");
                 }
-                size_t start=position_;
-                while (position_<text_.size() && std::isalpha(static_cast<unsigned char>(text_[position_]))) ++position_;
-                std::string name=text_.substr(start,position_-start);
-                if (name.empty()) Error("Unexpected character");
-                const auto p=parameters_;
-                if (name=="y") return [](double,double y){return y;};
-                if (name=="z" || name=="x") return [](double z,double){return z;};
-                if (name=="H") return [p](double,double){return p.BaseHeight;};
-                if (name=="R" || name=="radius") return [p](double,double){return p.JoinRadius;};
-                if (name=="p") return [p](double,double){return p.BaseExponent;};
-                if (name=="h") return [p](double,double){return p.CapHeight;};
-                if (name=="L" || name=="height") return [p](double,double){return p.BaseHeight+p.CapHeight;};
-                if (name=="pi") return [](double,double){return std::acos(-1.0);};
-                if (!Take('(')) Error("Unknown variable or missing (");
-                std::vector<Function> args;
-                args.push_back(Compare());
-                while (Take(',')) { if (args.size()>=3) Error("Too many arguments"); args.push_back(Compare()); }
-                if (!Take(')')) Error("Expected )");
-                if (name=="if" && args.size()==3) return [args](double z,double y){return args[0](z,y)!=0 ? args[1](z,y) : args[2](z,y);};
-                if (args.size()==2) {
-                    auto a=args[0], b=args[1];
-                    if(name=="min") return [a,b](double z,double y){return std::min(a(z,y),b(z,y));};
-                    if(name=="max") return [a,b](double z,double y){return std::max(a(z,y),b(z,y));};
-                    if(name=="pow") return [a,b](double z,double y){return std::pow(a(z,y),b(z,y));};
+
+                char current = text[position];
+
+                if (isdigit(static_cast<unsigned char>(current)) || current == '.')
+                {
+                    char* end = nullptr;
+                    const char* begin = text.c_str() + position;
+
+                    double value = strtod(begin, &end);
+
+                    if (end == begin || !isfinite(value))
+                    {
+                        Error("Invalid number");
+                    }
+
+                    position += end - begin;
+
+                    return [value](double, double)
+                        {
+                            return value;
+                        };
                 }
-                if(args.size()==1) {
-                    auto a=args[0];
-                    if(name=="sqrt") return [a](double z,double y){return std::sqrt(a(z,y));};
-                    if(name=="sin") return [a](double z,double y){return std::sin(a(z,y));};
-                    if(name=="cos") return [a](double z,double y){return std::cos(a(z,y));};
-                    if(name=="abs") return [a](double z,double y){return std::abs(a(z,y));};
-                    if(name=="exp") return [a](double z,double y){return std::exp(a(z,y));};
-                    if(name=="log") return [a](double z,double y){return std::log(a(z,y));};
+
+                size_t start = position;
+
+                while (position < text.size() && isalpha(static_cast<unsigned char>(text[position])))
+                {
+                    ++position;
                 }
+
+                string name = text.substr(start, position - start);
+
+                if (name.empty())
+                {
+                    Error("Unexpected character");
+                }
+
+                const auto param = parameters;
+
+                if (name == "y")
+                {
+                    return [](double, double y)
+                        {
+                            return y;
+                        };
+                }
+
+                if (name == "z" || name == "x")
+                {
+                    return [](double z, double)
+                        {
+                            return z;
+                        };
+                }
+
+                if (name == "H")
+                {
+                    return [param](double, double)
+                        {
+                            return param.BaseHeight;
+                        };
+                }
+
+                if (name == "R" || name == "radius")
+                {
+                    return [param](double, double)
+                        {
+                            return param.JoinRadius;
+                        };
+                }
+
+                if (name == "p")
+                {
+                    return [param](double, double)
+                        {
+                            return param.BaseExponent;
+                        };
+                }
+
+                if (name == "h")
+                {
+                    return [param](double, double)
+                        {
+                            return param.CapHeight;
+                        };
+                }
+
+                if (name == "L" || name == "height")
+                {
+                    return [param](double, double)
+                        {
+                            return param.BaseHeight +  param.CapHeight;
+                        };
+                }
+
+                if (name == "pi")
+                {
+                    return [](double, double)
+                        {
+                            return acos(-1.0);
+                        };
+                }
+
+                if (!Take('('))
+                {
+                    Error("Unknown variable or missing (");
+                }
+
+                vector<Function> arguments;
+
+                arguments.push_back(Compare());
+
+                while (Take(','))
+                {
+                    if (arguments.size() >= 3)
+                    {
+                        Error("Too many arguments");
+                    }
+
+                    arguments.push_back(Compare());
+                }
+
+                if (!Take(')'))
+                {
+                    Error("Expected )");
+                }
+
+                if (name == "if" && arguments.size() == 3)
+                {
+                    return [arguments](double z, double y)
+                        {
+                            return arguments[0](z, y) != 0 ? arguments[1](z, y) : arguments[2](z, y);
+                        };
+                }
+
+                if (arguments.size() == 2)
+                {
+                    auto first = arguments[0];
+                    auto second = arguments[1];
+
+                    if (name == "min")
+                    {
+                        return [first, second](double z, double y)
+                            {
+                                return min(first(z, y), second(z, y));
+                            };
+                    }
+
+                    if (name == "max")
+                    {
+                        return [first, second](double z, double y)
+                            {
+                                return max(first(z, y), second(z, y));
+                            };
+                    }
+
+                    if (name == "pow")
+                    {
+                        return [first, second](double z, double y)
+                            {
+                                return pow(first(z, y), second(z, y));
+                            };
+                    }
+                }
+
+                if (arguments.size() == 1)
+                {
+                    auto argument = arguments[0];
+
+                    if (name == "sqrt")
+                    {
+                        return [argument](double z, double y)
+                            {
+                                return sqrt(argument(z, y));
+                            };
+                    }
+
+                    if (name == "sin")
+                    {
+                        return [argument](double z, double y)
+                            {
+                                return sin(argument(z, y));
+                            };
+                    }
+
+                    if (name == "cos")
+                    {
+                        return [argument](double z, double y)
+                            {
+                                return cos(argument(z, y));
+                            };
+                    }
+
+                    if (name == "abs")
+                    {
+                        return [argument](double z, double y)
+                            {
+                                return abs(argument(z, y));
+                            };
+                    }
+
+                    if (name == "exp")
+                    {
+                        return [argument](double z, double y)
+                            {
+                                return exp(argument(z, y));
+                            };
+                    }
+
+                    if (name == "log")
+                    {
+                        return [argument](double z, double y)
+                            {
+                                return log(argument(z, y));
+                            };
+                    }
+                }
+
                 Error("Unknown function or wrong argument count");
             }
         public:
-            Parser(const std::string& text, Models::IceCreamParameters p):text_(text),parameters_(p) {}
-            Function Parse() { auto result=Compare(); Space(); if(position_!=text_.size()) Error("Unexpected text"); return result; }
+            Parser(const string& text, IceCreamParameters parameters) : text(text), parameters(parameters) { }
+
+            Function Parse()
+            {
+                auto result = Compare();
+
+                Space();
+
+                if (position != text.size())
+                {
+                    Error("Unexpected text");
+                }
+
+                return result;
+            }
         };
     }
-    std::function<double(double,double)> CompileExpression(const std::string& formula,const Models::IceCreamParameters& p)
+    function<double(double, double)> CompileExpression(const string& formula, const IceCreamParameters& parameters)
     {
-        if(formula.empty() || formula.size()>512) throw std::invalid_argument("Formula must contain 1 to 512 characters");
-        return Parser(formula,p).Parse();
+        if (formula.empty() || formula.size() > 512)
+        {
+            throw invalid_argument("Formula must contain 1 to 512 characters");
+        }
+
+        return Parser(formula, parameters).Parse();
     }
+
     const char* FormulaProfile::DefaultFormula()
-    { return "if(z<=H,R*(z/H)^p,sqrt(max(0,(1-(z-H)/h)*(R^2+h*(z-H)))))"; }
-    FormulaProfile::FormulaProfile(const std::string& formula,const Models::IceCreamParameters& p)
-        : height_(p.BaseHeight+p.CapHeight)
     {
-        if(formula.empty() || formula.size()>512) throw std::invalid_argument("Formula must contain 1 to 512 characters");
-        if(!std::isfinite(height_) || height_<=0) throw std::invalid_argument("Invalid height");
-        auto expression=CompileExpression(formula,p);
-        expression_=[expression](double z){return expression(z,0);};
-        // Reject invalid radii and interior pinches before replacing the current solid.
-        for(int i=0;i<=2048;++i) {
-            double radius=GetRadius(height_*i/2048);
-            if(i>0 && i<2048 && radius<=1e-8) throw std::invalid_argument("Radius must be positive inside 0 < z < H+h");
+        return "if(z<=H,R*(z/H)^p,sqrt(max(0,(1-(z-H)/h)*(R^2+h*(z-H)))))";
+    }
+    
+    FormulaProfile::FormulaProfile(const string& formula, const IceCreamParameters& parameters)
+        : FormulaProfile( formula, parameters, 0, parameters.BaseHeight + parameters.CapHeight){}
+
+    FormulaProfile::FormulaProfile(const string& formula, const IceCreamParameters& parameters, double minZ, double maxZ) : minZ_(minZ), maxZ_(maxZ)
+    {
+        if (!isfinite(minZ_) || !isfinite(maxZ_) || minZ_ >= maxZ_)
+        {
+            throw invalid_argument("Invalid formula profile range");
+        }
+
+        auto expression = CompileExpression(formula, parameters);
+
+        expression_ = [expression](double z)
+            {
+                return expression(z, 0);
+            };
+
+        for (int i = 0; i <= 2048; ++i)
+        {
+            double z = minZ_ + (maxZ_ - minZ_) * i / 2048.0;
+
+            double radius = GetRadius(z);
+
+            if (i > 0 && i < 2048 && radius <= 1e-8)
+            {
+                throw invalid_argument("Radius must be positive inside formula profile range");
+            }
         }
     }
+
     double FormulaProfile::GetRadius(double z) const
     {
-        if(!std::isfinite(z) || z<0 || z>height_) throw std::out_of_range("Height outside formula domain");
-        double r=expression_(z);
-        if(!std::isfinite(r) || r<0 || r>20) throw std::invalid_argument("Formula radius must be finite and between 0 and 20");
-        if ((z==0 || z==height_) && r<1e-8) return 0;
-        return r;
+        if (!isfinite(z) || z < minZ_ || z > maxZ_)
+        {
+            throw out_of_range("Height outside formula domain");
+        }
+
+        double radius = expression_(z);
+
+        if (!isfinite(radius) ||radius < 0 ||  radius > 20)
+        {
+            throw invalid_argument("Formula radius must be finite and between 0 and 20");
+        }
+
+        if ((z == minZ_ || z == maxZ_) && radius < 1e-8)
+        {
+            return 0;
+        }
+
+        return radius;
     }
 }

@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -61,6 +61,7 @@
     <ClCompile Include="Profiles\FormulaProfile.cpp" />
     <ClCompile Include="Profiles\PowerProfile.cpp" />
     <ClCompile Include="Profiles\SphericalCapProfile.cpp" />
+    <ClCompile Include="Profiles\TwoPartProfile.cpp" />
     <ClCompile Include="Services\MeshSectionCalculator.cpp" />
     <ClCompile Include="Services\HeightFieldBuilder.cpp" />
     <ClCompile Include="Services\SectionAreaCalculator.cpp" />
@@ -77,6 +78,7 @@
     <ClInclude Include="Models\IceCreamParameters.h" />
     <ClInclude Include="Models\SectionContour.h" />
     <ClInclude Include="Models\SectionResult.h" />
+    <ClInclude Include="Profiles\TwoPartProfile.h" />
     <ClInclude Include="Profiles\IRadialProfile.h" />
     <ClInclude Include="Profiles\IceCreamProfile.h" />
     <ClInclude Include="Profiles\FormulaProfile.h" />

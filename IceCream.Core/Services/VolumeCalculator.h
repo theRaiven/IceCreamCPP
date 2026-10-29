@@ -1,14 +1,17 @@
 ﻿#pragma once
 
 #include "../Profiles/IceCreamProfile.h"
+#include "../Profiles/TwoPartProfile.h"
 
 namespace IceCream::Core::Services
 {
 	using Profiles::IRadialProfile;
 	using Profiles::IceCreamProfile;
+	using Profiles::TwoPartProfile;
 
 	class VolumeCalculator
 	{
+		
 	public:
 		/// <summary>
 		/// Вычисляет объём всего мороженого.
@@ -30,6 +33,12 @@ namespace IceCream::Core::Services
 		/// <returns> Объём мороженого. </returns>
 		double Calculate(const IRadialProfile& profile, int intervals = 1000) const;
 
+		/// <summary>
+		/// Вычисляет объём тела, составленного их двух тел.
+		/// Каждая часть интегрируется отдельно.
+		/// </summary>
+		/// <param name="profile">Профиль мороженого.</param>
+		double Calculate(const TwoPartProfile& profile, int intervalsPerPart) const;
 	private:
 		static double GetSectionArea(const IRadialProfile& profile, double z);
 	};

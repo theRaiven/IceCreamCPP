@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <ItemGroup>
     <Filter Include="Geometry">
@@ -60,6 +60,9 @@
     <ClCompile Include="Services\VolumeCalculator.cpp">
       <Filter>Services</Filter>
     </ClCompile>
+    <ClCompile Include="Profiles\FormulaProfile.cpp" />
+    <ClCompile Include="Services\HeightFieldBuilder.cpp" />
+    <ClCompile Include="Profiles\TwoPartProfile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Geometry\Plane3D.h">
@@ -113,5 +116,8 @@
     <ClInclude Include="Services\VolumeCalculator.h">
       <Filter>Services</Filter>
     </ClInclude>
+    <ClInclude Include="Profiles\FormulaProfile.h" />
+    <ClInclude Include="Services\HeightFieldBuilder.h" />
+    <ClInclude Include="Profiles\TwoPartProfile.h" />
   </ItemGroup>
 </Project>
