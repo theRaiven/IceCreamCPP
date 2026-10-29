@@ -135,6 +135,9 @@ namespace IceCream::App::Views
 		const auto& origin = plane.Origin();
 		const glm::vec4 cutPlane(static_cast<float>(normal.X), static_cast<float>(normal.Y),
 		                         static_cast<float>(normal.Z), static_cast<float>(-normal.X * origin.X - normal.Y * origin.Y - normal.Z * origin.Z));
+
+		meshRenderer_.RenderShadowMap(viewModel.Lighting());
+
 		meshRenderer_.Draw(model, view, projection, joinHeight, cutPlane, false, viewModel.TransparentPositive(), viewModel.HasPartJoin(), viewModel.Lighting());
 
 		// Трафарет позволяет закрасить невыпуклые сечения с отверстиями.

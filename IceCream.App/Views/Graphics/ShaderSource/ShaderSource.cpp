@@ -34,6 +34,10 @@ in vec3 WorldPosition;
 in vec3 ObjectPosition;
 in float Height;
 
+uniform sampler2D uShadowMap;
+uniform mat4 uLightSpaceMatrix;
+uniform int uUseShadow;
+
 uniform float uJoinHeight;
 uniform int uHasParts;
 
@@ -54,6 +58,38 @@ uniform float uSpotAngle;
 uniform float uSpotExponent;
 
 out vec4 FragColor;
+
+float ShadowVisibility(	vec3 objectPosition, vec3 normal, vec3 lightDirection)
+{
+	vec4 lightPosition = uLightSpaceMatrix * vec4(objectPosition, 1.0);
+
+	if (lightPosition.w <= 0.0)
+	{
+		return 1.0;
+	}
+
+	vec3 projected = lightPosition.xyz / lightPosition.w;
+
+	projected = projected * 0.5 + 0.5;
+
+	if (projected.x < 0.0 || projected.x > 1.0 || projected.y < 0.0 || projected.y > 1.0 || projected.z < 0.0 || projected.z > 1.0)
+	{
+		return 1.0;
+	}
+
+	float firstDepth = texture( uShadowMap,	projected.xy).r;
+
+	float currentDepth = projected.z;
+
+	float bias = max(0.0015 * (1.0 - max(dot(normal, lightDirection), 0.0)),	0.0003);
+
+	if (currentDepth - bias > firstDepth)
+	{
+		return 0.0;
+	}
+
+	return 1.0;
+}
 
 void main()
 {
@@ -108,6 +144,11 @@ void main()
 			{
 				// Чем больше показатель, тем уже яркая область у оси.
 				lightFactor = pow(max(angleCos, 0.0), max(uSpotExponent, 0.0));
+
+				if (uUseShadow == 1)
+				{
+					lightFactor *= ShadowVisibility(ObjectPosition,	normal,	lightDirection);
+				}
 			}
 		}
 	}
@@ -147,6 +188,60 @@ void main()
 }
 )";
 
+const char* ShadowVertexShaderSource = R"(
+#version 330 core
+
+layout(location = 0) in vec3 aPosition;
+
+uniform mat4 uLightSpaceMatrix;
+
+void main()
+{
+	gl_Position = uLightSpaceMatrix * vec4(aPosition, 1.0);
+}
+)";
+
+const char* ShadowFragmentShaderSource = R"(
+#version 330 core
+
+void main()
+{
+}
+)";
+
+
+GLuint CreateShadowShaderProgram()
+{
+	GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, ShadowVertexShaderSource);
+
+	GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, ShadowFragmentShaderSource);
+
+	GLuint program = glCreateProgram();
+
+	glAttachShader(program, vertexShader);
+	glAttachShader(program, fragmentShader);
+
+	glLinkProgram(program);
+
+	GLint success;
+
+	glGetProgramiv(program, GL_LINK_STATUS, &success);
+
+	if (!success)
+	{
+		char log[1024];
+
+		glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+
+		std::cerr << "Ошибка линковки программы теней: " << log << std::endl;
+		std::exit(EXIT_FAILURE);
+	}
+
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+	return program;
+}
 /// <summary>
 /// Компилирует шейдер
 /// </summary>

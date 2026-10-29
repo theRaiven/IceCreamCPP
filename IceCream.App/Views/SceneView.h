@@ -18,6 +18,7 @@ namespace IceCream::App::Views
 		Graphics::MeshRenderer meshRenderer_;
 		Graphics::LineRenderer lineRenderer_;
 		Graphics::OverlayText text_;
+
 		float extent_ = 3;
 		float minZ_ = 0;
 		float maxZ_ = 4.2f;
