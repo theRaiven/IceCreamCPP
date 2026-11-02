@@ -1,0 +1,21 @@
+# Build
+x64/
+Debug/
+Release/
+
+# Visual Studio
+.vs/
+
+# Intermediate / generated files
+*.obj
+*.pch
+*.pdb
+*.idb
+*.ilk
+*.tlog
+*.lastbuildstate
+*.log
+
+# Test results
+TestResults/
+*.trx
