@@ -44,7 +44,7 @@ namespace IceCream::Core::Geometry
 
 		double Length() const
 		{
-			return std::sqrt(LengthSquared());
+			return std::hypot(X, Y, Z);
 		}
 
 		/// <summary>

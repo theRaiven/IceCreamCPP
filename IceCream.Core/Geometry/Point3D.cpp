@@ -8,7 +8,7 @@ namespace IceCream::Core::Geometry
 		auto dy = Y - other.Y;
 		auto dz = Z - other.Z;
 
-		return std::sqrt(dx * dx + dy * dy + dz * dz);
+		return std::hypot(dx, dy, dz); // так же как в 2д для устойчивости
 	}
 
 	Vector3D operator-(Point3D a, Point3D b)

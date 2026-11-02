@@ -7,6 +7,6 @@ namespace IceCream::Core::Geometry
 		auto dx = X - other.X;
 		auto dy = Y - other.Y;
 
-		return std::sqrt(dx * dx + dy * dy);
+		return std::hypot(dx, dy); // sqrt(dx * dx + dy * dy); только более стабильный. sqrt падал на стресс-тестах 
 	}
 }
