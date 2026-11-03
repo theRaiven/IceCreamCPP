@@ -20,6 +20,7 @@
 #include "../IceCream.Core/Profiles/PowerProfile.h"
 #include "../IceCream.Core/Profiles/SphericalCapProfile.h"
 #include "../IceCream.Core/Profiles/TwoPartProfile.h"
+#include "../IceCream.Core/Profiles/CompositeProfile.h"
 
 #include "../IceCream.Core/Services/HeightFieldBuilder.h"
 #include "../IceCream.Core/Services/MeshSectionCalculator.h"
