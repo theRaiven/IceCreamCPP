@@ -57,6 +57,7 @@
     <ClCompile Include="Models\IceCreamBody.cpp" />
     <ClCompile Include="Models\SectionContour.cpp" />
     <ClCompile Include="Models\SectionResult.cpp" />
+    <ClCompile Include="Profiles\CompositeProfile.cpp" />
     <ClCompile Include="Profiles\IceCreamProfile.cpp" />
     <ClCompile Include="Profiles\FormulaProfile.cpp" />
     <ClCompile Include="Profiles\PowerProfile.cpp" />
@@ -78,6 +79,7 @@
     <ClInclude Include="Models\IceCreamParameters.h" />
     <ClInclude Include="Models\SectionContour.h" />
     <ClInclude Include="Models\SectionResult.h" />
+    <ClInclude Include="Profiles\CompositeProfile.h" />
     <ClInclude Include="Profiles\TwoPartProfile.h" />
     <ClInclude Include="Profiles\IRadialProfile.h" />
     <ClInclude Include="Profiles\IceCreamProfile.h" />

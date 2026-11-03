@@ -3,3 +3,4 @@ bin/
 obj/
 *.user
 *.suo
+/x64/Release

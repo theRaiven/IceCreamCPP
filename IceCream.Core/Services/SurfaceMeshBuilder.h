@@ -1,8 +1,7 @@
 ﻿#pragma once
 
 #include "../Geometry/TriangleMesh.h"
-#include "../Profiles/IceCreamProfile.h"
-#include "../Profiles/TwoPartProfile.h"
+#include "../Profiles/IRadialProfile.h"
 
 #include <limits>
 
@@ -10,58 +9,22 @@ namespace IceCream::Core::Services
 {
 	using Geometry::TriangleMesh;
 	using Geometry::Point3D;
-	using Profiles::IceCreamProfile;
 	using Profiles::IRadialProfile;
-	using Profiles::TwoPartProfile;
 
 	class SurfaceMeshBuilder
 	{
 	public:
 		/// <summary>
-		/// Строит треугольную сетку для мороженого на основе профиля.
-		/// </summary>
-		/// <param name="profile"> Профиль мороженого </param>
-		/// <param name="baseSegments"> Количество сегментов основания </param>
-		/// <param name="capSegments"> Количество сегментов крышки </param>
-		/// <param name="radialSegments"> Количество радиальных сегментов </param>
-		/// <returns> Треугольная сетка </returns>
-		TriangleMesh Build(const IceCreamProfile& profile, int baseSegments = 40, int capSegments = 40, int radialSegments = 64) const;
-
-		/// <summary>
-		/// Строит треугольную сетку для тела, состоящего из двух профилей.
+		/// Строит треугольную сетку для тела, состоящего из n профилей.
 		/// </summary>
 		/// <param name="profile"> Составной профиль тела </param>
 		/// <param name="firstSegments"> Количество сегментов первой части </param>
 		/// <param name="secondSegments"> Количество сегментов второй части </param>
 		/// <param name="radialSegments"> Количество радиальных сегментов </param>
 		/// <returns> Треугольная сетка </returns>
-		TriangleMesh Build(const TwoPartProfile& profile,int firstSegments = 80, int secondSegments = 80, int radialSegments = 96) const;
-
 		TriangleMesh Build(const IRadialProfile& profile, int heightSegments = 160, int radialSegments = 96) const;
 
 	private:
-		/// <summary>
-		/// Строит основание мороженого на основе профиля.
-		/// </summary>
-		/// <param name="profile"> Профиль </param>
-		/// <param name="heightSegments"> Количество сегментов по высоте </param>
-		/// <param name="radialSegments"> Количество радиальных сегментов </param>
-		/// <param name="vertices"> Список вершин </param>
-		/// <param name="indices"> Список индексов </param>
-		/// <returns> Массив индексов для первого кольца </returns>
-		static std::vector<int> BuildBase(const IRadialProfile& profile, int heightSegments, int radialSegments, std::vector<Point3D>& vertices, std::vector<int>& indices);
-
-		/// <summary>
-		/// Строит крышку мороженого на основе профиля.
-		/// </summary>
-		/// <param name="profile"> Профиль </param>
-		/// <param name="heightSegments"> Количество сегментов по высоте </param>
-		/// <param name="radialSegments"> Количество радиальных сегментов </param>
-		/// <param name="vertices"> Список вершин </param>
-		/// <param name="indices"> Список индексов </param>
-		/// <param name="joinRing"> Массив индексов для кольца, которое соединяется с крышкой </param>
-		static void BuildCap(const IRadialProfile& profile, int heightSegments, int radialSegments, std::vector<Point3D>& vertices, std::vector<int>& indices, const std::vector<int>& joinRing);
-
 		/// <summary>
 		/// Строит часть мороженого на основе профиля.
 		/// </summary>

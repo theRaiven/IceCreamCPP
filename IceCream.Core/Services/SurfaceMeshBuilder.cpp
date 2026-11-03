@@ -4,15 +4,6 @@ namespace IceCream::Core::Services
 {
 	TriangleMesh SurfaceMeshBuilder::Build(const IRadialProfile& profile, int heightSegments, int radialSegments) const
 	{
-		// костыль, но я чет не придумал как обойти интерфейс. на тестах вышло, что он иногда вызывает этот конструкутор, вместо Build(TwoPartProfile)
-		if (const auto* twoPart = dynamic_cast<const TwoPartProfile*>(&profile))
-		{
-			int firstSegments = heightSegments / 2;
-			int secondSegments = heightSegments - firstSegments;
-
-			return Build(*twoPart, firstSegments, secondSegments, 	radialSegments);
-		}
-		//  ...
 
 		if (heightSegments < 2 || radialSegments < 3)
 		{
@@ -36,95 +27,6 @@ namespace IceCream::Core::Services
 			ConnectRing(last, { center }, indices);
 		}
 		return TriangleMesh(move(vertices), move(indices));
-	}
-
-	TriangleMesh SurfaceMeshBuilder::Build(const IceCreamProfile& profile, int baseSegments, int capSegments, int radialSegments) const
-	{
-		if (baseSegments < 1)
-		{
-			throw out_of_range("baseSegments");
-		}
-
-		if (capSegments < 1)
-		{
-			throw out_of_range("capSegments");
-		}
-
-		if (radialSegments < 3)
-		{
-			throw out_of_range("radialSegments");
-		}
-
-		vector<Point3D> vertices;
-		vector<int> indices;
-
-		vector<int> joinRing = BuildBase(profile.BaseProfile(), baseSegments, radialSegments, vertices, indices);
-		BuildCap(profile.CapProfile(), capSegments, radialSegments, vertices, indices, joinRing);
-
-		return TriangleMesh(move(vertices), move(indices));
-	}
-
-	TriangleMesh SurfaceMeshBuilder::Build(const TwoPartProfile& profile, int firstSegments, int secondSegments, int radialSegments) const
-	{
-		if (firstSegments < 1)
-		{
-			throw out_of_range("firstSegments");
-		}
-
-		if (secondSegments < 1)
-		{
-			throw out_of_range("secondSegments");
-		}
-
-		if (radialSegments < 3)
-		{
-			throw out_of_range("radialSegments");
-		}
-
-		vector<Point3D> vertices;
-		vector<int> indices;
-
-		const IRadialProfile& firstProfile = profile.FirstProfile();
-		const IRadialProfile& secondProfile = profile.SecondProfile();
-
-		vector<int> firstRing = CreateRing(firstProfile, firstProfile.MinZ(), radialSegments, vertices);
-
-		if (firstRing.size() > 1)
-		{
-			int center = static_cast<int>(vertices.size());
-
-			vertices.push_back({ 0, 0, firstProfile.MinZ() });
-
-			ConnectRing({ center }, firstRing, indices);
-		}
-
-		vector<int> joinRing = BuildPart(firstProfile, firstSegments, radialSegments, firstRing, vertices, indices);
-
-		vector<int> lastRing = BuildPart(secondProfile, secondSegments, radialSegments, joinRing, vertices, indices);
-
-		if (lastRing.size() > 1)
-		{
-			int center = static_cast<int>(vertices.size());
-
-			vertices.push_back({ 0, 0, secondProfile.MaxZ() });
-
-			ConnectRing(lastRing, { center }, indices);
-		}
-
-		return TriangleMesh(move(vertices), move(indices));
-	}
-
-	vector<int> SurfaceMeshBuilder::BuildBase(const IRadialProfile& profile, int heightSegments, int radialSegments, vector<Point3D>& vertices, vector<int>& indices)
-	{
-		vector<int> firstRing = CreateRing(profile, profile.MinZ(), radialSegments, vertices);
-
-		return BuildPart(profile, heightSegments, radialSegments, firstRing, vertices, indices);
-	}
-
-	void SurfaceMeshBuilder::BuildCap(const IRadialProfile& profile, int heightSegments, int radialSegments, vector<Point3D>& vertices, vector<int>& indices, const vector<int>& joinRing)
-	{
-		// Начальное кольцо уже создано при построении рожка
-		BuildPart(profile, heightSegments, radialSegments, joinRing, vertices, indices);
 	}
 
 	vector<int> SurfaceMeshBuilder::BuildPart(const IRadialProfile& profile, int heightSegments, int radialSegments, const vector<int>& firstRing, vector<Point3D>& vertices, vector<int>& indices)

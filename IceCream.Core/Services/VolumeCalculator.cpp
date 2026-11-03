@@ -2,35 +2,8 @@
 
 namespace IceCream::Core::Services
 {
-	double VolumeCalculator::Calculate(const IceCreamProfile& profile, int intervalsPerPart) const
-	{
-		double baseVolume = Calculate(profile.BaseProfile(), intervalsPerPart);
-
-		double capVolume = Calculate(profile.CapProfile(), intervalsPerPart);
-
-		double volume = baseVolume + capVolume;
-
-		if (!std::isfinite(volume))
-		{
-			throw std::runtime_error("При вычислении объёма произошло переполнение.");
-		}
-
-		return volume;
-	}
-
 	double VolumeCalculator::Calculate(const IRadialProfile& profile, int intervals) const
 	{
-		// тож не придумал чет другое, пусть простой костыль будет
-		if (const auto* twoPart = dynamic_cast<const TwoPartProfile*>(&profile))
-		{
-			return Calculate(*twoPart, intervals);
-		}
-		// а надо ли....
-		if (const auto* iceCream = dynamic_cast<const IceCreamProfile*>(&profile))
-		{
-			return Calculate(*iceCream, intervals);
-		}
-
 		if (intervals < 2 || intervals % 2 != 0)
 		{
 			throw std::out_of_range("Количество промежутков должно быть чётным и не меньше двух.");
@@ -59,22 +32,6 @@ namespace IceCream::Core::Services
 		}
 
 		double volume = step / 3 * sum;
-
-		if (!std::isfinite(volume))
-		{
-			throw std::runtime_error("При вычислении объёма произошло переполнение.");
-		}
-
-		return volume;
-	}
-
-	double VolumeCalculator::Calculate(const TwoPartProfile& profile, int intervalsPerPart) const
-	{
-		double firstVolume = Calculate(profile.FirstProfile(), intervalsPerPart);
-
-		double secondVolume = Calculate(profile.SecondProfile(), intervalsPerPart);
-
-		double volume = firstVolume + secondVolume;
 
 		if (!std::isfinite(volume))
 		{

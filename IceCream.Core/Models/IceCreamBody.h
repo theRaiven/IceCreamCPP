@@ -1,8 +1,18 @@
 ﻿#pragma once
 
 #include "IceCreamParameters.h"
+
+#include "../Geometry/TriangleMesh.h"
+
+#include "../Profiles/IRadialProfile.h"
 #include "../Profiles/PowerProfile.h"
+#include "../Profiles/SphericalCapProfile.h"
+#include "../Profiles/TwoPartProfile.h"
+
 #include "../Services/SurfaceMeshBuilder.h"
+
+#include <memory>
+#include <stdexcept>
 
 namespace IceCream::Core::Models
 {
