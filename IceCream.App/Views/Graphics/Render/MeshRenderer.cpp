@@ -57,50 +57,25 @@ namespace IceCream::App::Views::Graphics
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
-	void MeshRenderer::Upload(const Core::Geometry::TriangleMesh& mesh)
-	{
-		std::vector<float> vertices;
-		vertices.reserve(mesh.Vertices().size() * 3);
+    void MeshRenderer::Upload(const Core::Geometry::TriangleMesh& mesh,const std::vector<std::array<float,4>>& colors)
+    {
+        hasColors_=!colors.empty();
+        if(hasColors_ && colors.size()!=mesh.TriangleCount()) throw std::invalid_argument("Material count does not match mesh");
+        std::vector<float> vertices;
+        std::vector<GLuint> indices;
+        auto push=[&](const Core::Geometry::Point3D& p,const std::array<float,4>& c){vertices.insert(vertices.end(),{float(p.X),float(p.Y),float(p.Z),c[0],c[1],c[2],c[3]});};
+        if(hasColors_) {for(size_t i=0;i<mesh.Indices().size();++i){push(mesh.Vertices()[mesh.Indices()[i]],colors[i/3]);indices.push_back(static_cast<GLuint>(i));}}
+        else {for(auto p:mesh.Vertices())push(p,{{1,1,1,1}});for(int i:mesh.Indices())indices.push_back(i);}
+        indexCount_=static_cast<GLsizei>(indices.size());
+        if(!vao_){glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);glGenBuffers(1,&ebo_);}
+        glBindVertexArray(vao_);glBindBuffer(GL_ARRAY_BUFFER,vbo_);glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(float),vertices.data(),GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,7*sizeof(float),nullptr);glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1,4,GL_FLOAT,GL_FALSE,7*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));glEnableVertexAttribArray(1);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ebo_);glBufferData(GL_ELEMENT_ARRAY_BUFFER,indices.size()*sizeof(GLuint),indices.data(),GL_DYNAMIC_DRAW);
+        glBindVertexArray(0);glBindBuffer(GL_ARRAY_BUFFER,0);
+    }
 
-		for (const auto& point : mesh.Vertices())
-		{
-			vertices.push_back(static_cast<float>(point.X));
-			vertices.push_back(static_cast<float>(point.Y));
-			vertices.push_back(static_cast<float>(point.Z));
-		}
-
-		std::vector<GLuint> indices;
-		indices.reserve(mesh.Indices().size());
-
-		for (int index : mesh.Indices())
-		{
-			indices.push_back(static_cast<GLuint>(index));
-		}
-
-		indexCount_ = static_cast<GLsizei>(indices.size());
-
-		if (vao_ == 0)
-		{
-			glGenVertexArrays(1, &vao_);
-			glGenBuffers(1, &vbo_);
-			glGenBuffers(1, &ebo_);
-		}
-
-		glBindVertexArray(vao_);
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-		glEnableVertexAttribArray(0);
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_DYNAMIC_DRAW);
-
-		glBindVertexArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-	}
-
-	void MeshRenderer::Draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, float joinHeight, const glm::vec4& cutPlane, bool ghost, bool transparentPositive, bool hasParts, const LightingSettings& lighting) const
+	void MeshRenderer::Draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, float joinHeight, const glm::vec4& cutPlane, bool ghost, bool transparentPositive, bool hasParts, const LightingSettings& lighting, const ViewModels::AppearanceSettings& appearance) const
 	{
 		if (vao_ == 0 || indexCount_ == 0)
 		{
@@ -108,6 +83,10 @@ namespace IceCream::App::Views::Graphics
 		}
 
 		glUseProgram(shaderProgram_);
+        glUniform1i(glGetUniformLocation(shaderProgram_,"uHasColors"),hasColors_?1:0);
+        glUniform4fv(glGetUniformLocation(shaderProgram_, "uBodyColor"),1,glm::value_ptr(appearance.Color(ViewModels::ColorRole::Body)));
+        glUniform4fv(glGetUniformLocation(shaderProgram_, "uConeColor"),1,glm::value_ptr(appearance.Color(ViewModels::ColorRole::Cone)));
+        glUniform4fv(glGetUniformLocation(shaderProgram_, "uCapColor"),1,glm::value_ptr(appearance.Color(ViewModels::ColorRole::Cap)));
 		//свет
 		glUniform1i(glGetUniformLocation(shaderProgram_, "uLightType"), static_cast<int>(lighting.Type));
 
@@ -146,6 +125,7 @@ namespace IceCream::App::Views::Graphics
 		glUniform1i(glGetUniformLocation(shaderProgram_, "uGhostPass"), ghost ? 1 : 0);
 		glUniform1f(glGetUniformLocation(shaderProgram_, "uTransparentSide"), transparentPositive ? 1.0f : -1.0f);
 		glBindVertexArray(vao_);
+        glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		if (ghost)
 		{
@@ -167,7 +147,8 @@ namespace IceCream::App::Views::Graphics
 			glDrawElements(GL_TRIANGLES, indexCount_, GL_UNSIGNED_INT, nullptr);
 		}
 
-		glBindVertexArray(0);
+		glDisable(GL_BLEND);
+        glBindVertexArray(0);
 		glUseProgram(0);
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
@@ -283,7 +264,8 @@ namespace IceCream::App::Views::Graphics
 
 		glDisable(GL_POLYGON_OFFSET_FILL);
 
-		glBindVertexArray(0);
+		glDisable(GL_BLEND);
+        glBindVertexArray(0);
 		glUseProgram(0);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, oldFramebuffer);

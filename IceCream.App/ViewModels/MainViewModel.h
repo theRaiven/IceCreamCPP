@@ -1,4 +1,6 @@
 #pragma once
+#include "AppearanceSettings.h"
+#include "../../IceCream.Core/Services/IntegralBodyBuilder.h"
 
 #include "../../IceCream.Core/Models/IceCreamBody.h"
 #include "../../IceCream.Core/Models/SectionResult.h"
@@ -38,12 +40,29 @@ namespace IceCream::App::ViewModels
 		Core::Geometry::Vector3D sectionRotation_{};
 		
 		Views::Graphics::LightingSettings lighting_;
+		AppearanceSettings appearance_;
+		int dependentAxis_ = 2;
+        std::vector<Core::Services::IntegralPart> integralParts_;
+        std::vector<std::array<float,4>> triangleColors_;
+        double integralError_=0;
 
 		static Core::Models::IceCreamBody CreateBody(const Core::Models::IceCreamParameters& parameters, const std::string& formula);
 		void RebuildBody();
 		void RecalculateSection();
+        Core::Geometry::Plane3D CreateSectionPlane(bool surface) const;
 
 	public:
+		void ApplyIntegralParts(const std::vector<Core::Services::IntegralPart>& parts);
+        const auto& IntegralParts() const { return integralParts_; }
+        const auto& TriangleColors() const { return triangleColors_; }
+        bool IsIntegralBody() const { return !integralParts_.empty(); }
+        double IntegralError() const { return integralError_; }
+        const AppearanceSettings& Appearance() const { return appearance_; }
+		void SetAppearance(const AppearanceSettings& settings);
+		int DependentAxis() const { return dependentAxis_; }
+		void SetDependentAxis(int axis);
+		glm::dmat3 SurfaceRotation() const;
+		// Formula and mesh remain in local (u,v,w) coordinates; only this matrix changes.
 		/// <summary>
 		/// Создаёт мороженое с начальными параметрами.
 		/// </summary>
@@ -159,6 +178,7 @@ namespace IceCream::App::ViewModels
 		}
 
 		void SetSectionPosition(int axis, double value);
+		void SetSectionPose(Core::Geometry::Point3D position, Core::Geometry::Vector3D rotation);
 		void SetSectionRotation(int axis, double degrees);
 		void SetSectionPreset(int normalAxis);
 

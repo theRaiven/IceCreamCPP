@@ -9,6 +9,8 @@ const char* VertexShaderSource = R"(
 
 layout(location = 0) in vec3 aPosition;
 
+layout(location = 1) in vec4 aColor;
+out vec4 PartColor;
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProjection;
@@ -19,6 +21,7 @@ out vec3 ObjectPosition;
 
 void main()
 {
+	PartColor = aColor;
 	ObjectPosition = aPosition;
 	Height = aPosition.z;
 	vec4 position = uModel * vec4(aPosition, 1.0);
@@ -30,6 +33,8 @@ void main()
 const char* FragmentShaderSource = R"(
 #version 330 core
 
+in vec4 PartColor;
+uniform int uHasColors;
 in vec3 WorldPosition;
 in vec3 ObjectPosition;
 in float Height;
@@ -38,6 +43,9 @@ uniform sampler2D uShadowMap;
 uniform mat4 uLightSpaceMatrix;
 uniform int uUseShadow;
 
+uniform vec4 uBodyColor;
+uniform vec4 uConeColor;
+uniform vec4 uCapColor;
 uniform float uJoinHeight;
 uniform int uHasParts;
 
@@ -157,31 +165,32 @@ void main()
 	float diffuse = max(dot(normal, lightDirection), 0.0);
 	float brightness = uAmbientIntensity + uLightIntensity * diffuse * lightFactor;
 
-	vec3 baseColor;
+	vec4 material;
 
-	if (uHasParts == 0)
+	if (uHasColors == 1) { material = PartColor; }
+    else if (uHasParts == 0)
 	{
-		baseColor = vec3(0.32, 0.70, 0.88);
+		material = uBodyColor;
 	}
 	else if (Height >= uJoinHeight)
 	{
 		// Фисташковое мороженое.
-		baseColor = vec3(0.60, 0.85, 0.35);
+		material = uCapColor;
 	}
 	else
 	{
 		// Вафельный рожок.
-		baseColor = vec3(0.76, 0.5, 0.3);
+		material = uConeColor;
 	}
 
 	// Собственная яркость материала не зависит от внешнего света.
-	vec3 color = baseColor * brightness + baseColor * uEmissionIntensity;
+	vec3 color = material.rgb * (brightness + uEmissionIntensity);
 
-	float alpha = 1.0;
+	float alpha = material.a;
 
 	if (uGhostPass == 1)
 	{
-		alpha = 0.16;
+		alpha *= 0.16;
 	}
 
 	FragColor = vec4(color, alpha);
@@ -326,13 +335,13 @@ void main()
 const char* LineFragmentShaderSource = R"(
 #version 330 core
 
-uniform vec3 uColor;
+uniform vec4 uColor;
 
 out vec4 FragColor;
 
 void main()
 {
-	FragColor = vec4(uColor, 1.0);
+	FragColor = uColor;
 }
 )";
 

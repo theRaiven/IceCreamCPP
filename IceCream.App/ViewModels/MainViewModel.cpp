@@ -76,7 +76,8 @@ namespace IceCream::App::ViewModels
 
 		auto body = CreateBody(parameters, formula);
 		double volume = VolumeCalculator().Calculate(body.Profile());
-		auto section = MeshSectionCalculator().Calculate(body.Mesh(), sectionPlane_);
+		auto nextPlane = CreateSectionPlane(false);
+        auto section = MeshSectionCalculator().Calculate(body.Mesh(), nextPlane);
 		double area = section.IsEmpty() ? 0 : SectionAreaCalculator().Calculate(section);
 		std::vector<Point3D> joinBoundary;
 		std::optional<TriangleMesh> joinDisk;
@@ -106,7 +107,7 @@ namespace IceCream::App::ViewModels
 				}
 
 				joinDisk.emplace(std::move(vertices), std::move(indices));
-				joinTrace = MeshSectionCalculator().Calculate(*joinDisk, sectionPlane_).Contours();
+				joinTrace = MeshSectionCalculator().Calculate(*joinDisk, nextPlane).Contours();
 			}
 		}
 		// Обновляем модель после успешного завершения расчётов.
@@ -115,26 +116,30 @@ namespace IceCream::App::ViewModels
 		formula_ = std::move(acceptedFormula);
 		parameters_ = parameters;
 		volume_ = volume;
-		section_ = std::move(section);
+		sectionPlane_ = nextPlane;
+        section_ = std::move(section);
 		sectionArea_ = area;
 		joinBoundary_ = std::move(joinBoundary);
 		joinDisk_ = std::move(joinDisk);
 		joinInSection_ = std::move(joinTrace);
 		heightField_ = false;
 		surfaceEdges_.clear();
-		++geometryRevision_;
+		integralParts_.clear(); triangleColors_.clear();
+        ++geometryRevision_;
 	}
 
 	void MainViewModel::ApplyHeightField(const Core::Services::HeightFieldBounds& bounds, const std::string& formula)
 	{
 		auto solid = Core::Services::HeightFieldBuilder().Build(formula, bounds);
 		IceCreamBody body(parameters_, std::move(solid.Mesh));
-		auto section = MeshSectionCalculator().Calculate(body.Mesh(), sectionPlane_);
+		auto nextPlane = CreateSectionPlane(true);
+        auto section = MeshSectionCalculator().Calculate(body.Mesh(), nextPlane);
 		double area = section.IsEmpty() ? 0 : SectionAreaCalculator().Calculate(section);
 		std::string acceptedFormula = formula;
 		body_ = std::move(body);
 		formula_ = std::move(acceptedFormula);
-		section_ = std::move(section);
+		sectionPlane_ = nextPlane;
+        section_ = std::move(section);
 		sectionArea_ = area;
 		volume_ = solid.Volume;
 		surfaceBounds_ = bounds;
@@ -144,10 +149,11 @@ namespace IceCream::App::ViewModels
 		joinDisk_.reset();
 		joinInSection_.clear();
 		heightField_ = true;
-		++geometryRevision_;
+		integralParts_.clear(); triangleColors_.clear();
+        ++geometryRevision_;
 	}
 
-	void MainViewModel::RecalculateSection()
+	Plane3D MainViewModel::CreateSectionPlane(bool surface) const
 	{
 		// Поворачиваем плоскость XY вокруг её начала по глобальным осям X, Y, Z.
 		const double k = std::acos(-1.0) / 180.0;
@@ -158,16 +164,21 @@ namespace IceCream::App::ViewModels
 		    std::cos(z) * std::sin(y) * std::cos(x) + std::sin(z) * std::sin(x),
 		    std::sin(z) * std::sin(y) * std::cos(x) - std::cos(z) * std::sin(x),
 		    std::cos(y) * std::cos(x)};
-		sectionPlane_ = Plane3D(sectionPosition_, normal);
-		section_ = MeshSectionCalculator().Calculate(body_.Mesh(), sectionPlane_);
-		sectionArea_ = section_.IsEmpty() ? 0.0 : SectionAreaCalculator().Calculate(section_);
-		joinInSection_.clear();
+		const auto inverse = glm::transpose(!surface || dependentAxis_==2 ? glm::dmat3(1) : dependentAxis_==0 ? glm::dmat3(0,1,0, 0,0,1, 1,0,0) : glm::dmat3(0,0,1, 1,0,0, 0,1,0));
+		const auto o = inverse * glm::dvec3(sectionPosition_.X, sectionPosition_.Y, sectionPosition_.Z);
+		const auto n = inverse * glm::dvec3(normal.X, normal.Y, normal.Z);
+        return Plane3D({o.x,o.y,o.z}, {n.x,n.y,n.z});
+    }
 
-		if (joinDisk_)
-		{
-			joinInSection_ = MeshSectionCalculator().Calculate(*joinDisk_, sectionPlane_).Contours();
-		}
-	}
+    void MainViewModel::RecalculateSection()
+    {
+        auto plane=CreateSectionPlane(heightField_);
+        auto section=MeshSectionCalculator().Calculate(body_.Mesh(),plane);
+        double area=section.IsEmpty()?0:SectionAreaCalculator().Calculate(section);
+        std::vector<SectionContour> join;
+        if(joinDisk_) join=MeshSectionCalculator().Calculate(*joinDisk_,plane).Contours();
+        sectionPlane_=plane;section_=std::move(section);sectionArea_=area;joinInSection_=std::move(join);
+    }
 
 	void MainViewModel::SetBaseHeight(double value)
 	{
@@ -199,6 +210,8 @@ namespace IceCream::App::ViewModels
 
 	void MainViewModel::ResetDefaults()
 	{
+		const bool integral=IsIntegralBody();
+        dependentAxis_ = 2;
 		formula_ = Core::Profiles::FormulaProfile::DefaultFormula();
 		parameters_ = DefaultParameters();
 		transparentPositive_ = true;
@@ -206,10 +219,12 @@ namespace IceCream::App::ViewModels
 		sectionRotation_ = {};
 		RebuildBody();
 		RecalculateSection();
+        if(integral) ApplyIntegralParts(IntegralBodyBuilder::DefaultParts());
 	}
 
 	void MainViewModel::SetSectionPosition(int axis, double value)
 	{
+        const auto previous=sectionPosition_;
 		if (axis < 0 || axis > 2 || !std::isfinite(value) || value < -20 || value > 20)
 		{
 			throw std::out_of_range("Position must be between -20 and 20.");
@@ -230,11 +245,25 @@ namespace IceCream::App::ViewModels
 			sectionPosition_.Z = value;
 		}
 
-		RecalculateSection();
+		try { RecalculateSection(); } catch (...) { sectionPosition_=previous; throw; }
 	}
+
+    void MainViewModel::SetSectionPose(Point3D position, Vector3D rotation)
+    {
+        for(double value : {position.X,position.Y,position.Z})
+            if(!std::isfinite(value) || std::abs(value)>20) throw std::out_of_range("Invalid section position");
+        for(double value : {rotation.X,rotation.Y,rotation.Z})
+            if(!std::isfinite(value) || std::abs(value)>180) throw std::out_of_range("Invalid section rotation");
+        const auto oldPosition=sectionPosition_;
+        const auto oldRotation=sectionRotation_;
+        sectionPosition_=position; sectionRotation_=rotation;
+        try { RecalculateSection(); }
+        catch (...) { sectionPosition_=oldPosition;sectionRotation_=oldRotation;throw; }
+    }
 
 	void MainViewModel::SetSectionRotation(int axis, double degrees)
 	{
+        const auto previous=sectionRotation_;
 		if (axis < 0 || axis > 2 || !std::isfinite(degrees))
 		{
 			throw std::invalid_argument("Invalid rotation.");
@@ -257,11 +286,12 @@ namespace IceCream::App::ViewModels
 			sectionRotation_.Z = degrees;
 		}
 
-		RecalculateSection();
+		try { RecalculateSection(); } catch (...) { sectionRotation_=previous; throw; }
 	}
 
 	void MainViewModel::SetSectionPreset(int normalAxis)
 	{
+        const auto previous=sectionRotation_;
 		if (normalAxis < 0 || normalAxis > 2)
 		{
 			throw std::out_of_range("Invalid axis.");
@@ -276,14 +306,52 @@ namespace IceCream::App::ViewModels
 
 		if (normalAxis == 1)
 		{
-			sectionRotation_.X = 90;
+			sectionRotation_.X = -90;
 		}
 
-		RecalculateSection();
+		try { RecalculateSection(); } catch (...) { sectionRotation_=previous; throw; }
 	}
 	// свет
 	void MainViewModel::SetLighting(const Views::Graphics::LightingSettings& lighting)
 	{
 		lighting_ = lighting;
 	}
+
+	glm::dmat3 MainViewModel::SurfaceRotation() const
+	{
+		if (!heightField_ || dependentAxis_ == 2) return glm::dmat3(1);
+		if (dependentAxis_ == 0) return glm::dmat3(0,1,0, 0,0,1, 1,0,0);
+		return glm::dmat3(0,0,1, 1,0,0, 0,1,0);
+	}
+
+	void MainViewModel::SetDependentAxis(int axis)
+	{
+		if (axis<0 || axis>2) throw std::out_of_range("Invalid dependent axis");
+		const int previous=dependentAxis_;
+        dependentAxis_=axis;
+        try { RecalculateSection(); } catch (...) { dependentAxis_=previous; throw; }
+	}
+
+	void MainViewModel::SetAppearance(const AppearanceSettings& settings)
+	{
+		if (settings.CoordinateSize<12 || settings.CoordinateSize>36 || settings.HintSize<10 || settings.HintSize>24)
+			throw std::out_of_range("Invalid text size");
+		for (auto color : settings.Colors) for(int i=0;i<4;++i)
+			if (!std::isfinite(color[i]) || color[i]<0 || color[i]>1) throw std::invalid_argument("Invalid color");
+		appearance_=settings;
+	}
+    void MainViewModel::ApplyIntegralParts(const std::vector<IntegralPart>& parts)
+    {
+        auto accepted=parts;
+        auto solid=IntegralBodyBuilder().Build(parts);
+        IceCreamBody body(parameters_,std::move(solid.Mesh));
+        auto plane=CreateSectionPlane(false);
+        auto section=MeshSectionCalculator().Calculate(body.Mesh(),plane);
+        double area=section.IsEmpty()?0:SectionAreaCalculator().Calculate(section);
+        body_=std::move(body);sectionPlane_=plane;section_=std::move(section);sectionArea_=area;
+        volume_=solid.Integral;integralError_=solid.EstimatedError;integralParts_=std::move(accepted);
+        triangleColors_=std::move(solid.TriangleColors);surfaceEdges_=std::move(solid.Seams);
+        heightField_=false;dependentAxis_=2;joinDisk_.reset();joinBoundary_.clear();joinInSection_.clear();
+        ++geometryRevision_;
+    }
 }

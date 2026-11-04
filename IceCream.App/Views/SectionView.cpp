@@ -9,6 +9,7 @@
 
 namespace IceCream::App::Views
 {
+    using ViewModels::ColorRole;
 	namespace
 	{
 		std::vector<float> PackContour2D(const Core::Models::SectionContour& contour)
@@ -49,6 +50,7 @@ namespace IceCream::App::Views
 	void SectionView::Initialize()
 	{
 		text_.Initialize();
+        hints_.Initialize();
 		lineRenderer_.Initialize();
 	}
 
@@ -62,10 +64,14 @@ namespace IceCream::App::Views
 
 	void SectionView::Render(const ViewModels::MainViewModel& viewModel) const
 	{
-		glViewport(x_, y_, width_, height_);
+		const auto& appearance = viewModel.Appearance();
+        text_.SetSize(appearance.CoordinateSize);
+        hints_.SetSize(appearance.HintSize);
+        glViewport(x_, y_, width_, height_);
 		glEnable(GL_SCISSOR_TEST);
 		glScissor(x_, y_, width_, height_);
-		glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
+		const auto background = appearance.Color(ColorRole::Section);
+        glClearColor(background.r, background.g, background.b, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glDisable(GL_SCISSOR_TEST);
 		glDisable(GL_DEPTH_TEST);
@@ -130,27 +136,27 @@ namespace IceCream::App::Views
 			grid.insert(grid.end(), {minX, y, 0, maxX, y, 0});
 		}
 
-		lineRenderer_.Draw(grid, mvp, glm::vec3(.17f, .20f, .26f), GL_LINES);
+		lineRenderer_.Draw(grid, mvp, glm::vec3(appearance.Color(ColorRole::Grid)), GL_LINES);
 		glLineWidth(1.0f);
-		lineRenderer_.Draw(Axis(minX, 0.0f, maxX, 0.0f), mvp, glm::vec3(.70f, .32f, .30f), GL_LINES);
-		lineRenderer_.Draw(Axis(0.0f, minY, 0.0f, maxY), mvp, glm::vec3(0.35f, 0.38f, 0.45f), GL_LINES);
+		lineRenderer_.Draw(Axis(minX, 0.0f, maxX, 0.0f), mvp, glm::vec3(appearance.Color(ColorRole::AxisX)), GL_LINES);
+		lineRenderer_.Draw(Axis(0.0f, minY, 0.0f, maxY), mvp, glm::vec3(appearance.Color(ColorRole::AxisY)), GL_LINES);
 
 		glLineWidth(2.4f);
 
 		for (const auto& contour : viewModel.Section().Contours())
 		{
-			lineRenderer_.Draw(PackContour2D(contour), mvp, glm::vec3(0.95f, 0.82f, 0.30f), GL_LINE_STRIP);
+			lineRenderer_.Draw(PackContour2D(contour), mvp, glm::vec3(appearance.Color(ColorRole::Contour)), GL_LINE_STRIP, appearance.Color(ColorRole::Contour).a);
 		}
 
 		glLineWidth(3);
-		const glm::vec3 seamColor(.98f, .38f, .84f);
+		const glm::vec3 seamColor(appearance.Color(ColorRole::Seam));
 
 		for (const auto& trace : viewModel.JoinInSection())
 		{
-			lineRenderer_.Draw(PackContour2D(trace), mvp, seamColor, trace.Points2D().size() == 1 ? GL_POINTS : GL_LINE_STRIP);
+			lineRenderer_.Draw(PackContour2D(trace), mvp, seamColor, trace.Points2D().size() == 1 ? GL_POINTS : GL_LINE_STRIP, appearance.Color(ColorRole::Seam).a);
 		}
 		// Отмечаем пересечения плоскости с рёбрами поверхности, стенок и основания.
-		if (viewModel.IsHeightField())
+		if (viewModel.IsHeightField() || viewModel.IsIntegralBody())
 		{
 			std::vector<float> markers;
 
@@ -188,7 +194,7 @@ namespace IceCream::App::Views
 			}
 
 			std::snprintf(number, sizeof(number), "%g", x);
-			text_.Screen((x - minX) / (maxX - minX) * width_ + 3, (0 - minY) / (maxY - minY) * height_ + 4, width_, height_, glm::vec3(.7f), number);
+			text_.Screen((x - minX) / (maxX - minX) * width_ + 3, (0 - minY) / (maxY - minY) * height_ + 4, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
 		}
 
 		for (float y = std::ceil(minY / step) * step; y < maxY; y += step)
@@ -203,30 +209,25 @@ namespace IceCream::App::Views
 
 			if (pixelY < height_ - 82 && pixelY > 8)
 			{
-				text_.Screen((0 - minX) / (maxX - minX) * width_ + 4, pixelY, width_, height_, glm::vec3(.7f), number);
+				text_.Screen((0 - minX) / (maxX - minX) * width_ + 4, pixelY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
 			}
 		}
 
-		text_.Screen(width_ - 22, (0 - minY) / (maxY - minY) * height_ + 5, width_, height_, glm::vec3(.85f), "u");
-		text_.Screen((0 - minX) / (maxX - minX) * width_ + 5, height_ - 80, width_, height_, glm::vec3(.85f), "v");
-		text_.Screen(16, height_ - 25, width_, height_, glm::vec3(.9f), "Сечение: координаты плоскости (u, v)");
+		text_.Screen(width_ - 22, (0 - minY) / (maxY - minY) * height_ + 5, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "u");
+		text_.Screen((0 - minX) / (maxX - minX) * width_ + 5, height_ - 80, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "v");
+        char status[128];
+        std::snprintf(status,sizeof(status),"Площадь: %.5g",viewModel.SectionArea());
+        text_.Screen(16,height_-32,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),status);
+        if (viewModel.Section().IsEmpty()) hints_.Screen(16,height_-62,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"Плоскость не пересекает фигуру");
+        if (appearance.ShowHints) hints_.Screen(16,height_-88,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"u, v — локальные координаты плоскости");
 
-		if (viewModel.HasPartJoin())
-		{
-			text_.Screen(16, height_ - 46, width_, height_, seamColor, viewModel.JoinInSection().empty() ? "Стык рожка и шапки вне этого среза" : "Пурпурный - стык рожка и шапки");
-		}
-		else if (viewModel.IsHeightField())
-		{
-			text_.Screen(16, height_ - 46, width_, height_, seamColor, "Пурпурные точки - границы поверхности и стенок");
-		}
-
-		text_.Screen(16, static_cast<float>(height_ - 66), width_, height_, glm::vec3(.65f), "u, v - локальные оси секущей плоскости");
 		glEnable(GL_DEPTH_TEST);
 	}
 
 	void SectionView::Destroy()
 	{
 		text_.Destroy();
+        hints_.Destroy();
 		lineRenderer_.Destroy();
 	}
 }

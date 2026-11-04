@@ -18,14 +18,15 @@ namespace IceCream::App::Views
 		Graphics::MeshRenderer meshRenderer_;
 		Graphics::LineRenderer lineRenderer_;
 		Graphics::OverlayText text_;
+        Graphics::OverlayText hints_;
 
 		float extent_ = 3;
 		float minZ_ = 0;
 		float maxZ_ = 4.2f;
 		float centerX_ = 0;
 		float centerY_ = 0;
-		void DrawCoordinates(const glm::mat4& mvp) const;
-		void DrawOrientation(const glm::mat4& view) const;
+		void DrawCoordinates(const glm::mat4& mvp, const ViewModels::AppearanceSettings& appearance, const glm::mat3& rotation) const;
+		void DrawOrientation(const glm::mat4& view, const ViewModels::AppearanceSettings& appearance) const;
 		int x_ = 0;
 		int y_ = 0;
 		int width_ = 1;
@@ -34,7 +35,7 @@ namespace IceCream::App::Views
 	public:
 		void Initialize();
 		void SetViewport(int x, int y, int width, int height);
-		void UploadMesh(const Core::Geometry::TriangleMesh& mesh);
+		void UploadMesh(const Core::Geometry::TriangleMesh& mesh, const std::vector<std::array<float,4>>& colors = {});
 		void Render(const ViewModels::MainViewModel& viewModel) const;
 		bool Contains(int windowX, int windowY, int windowHeight) const;
 		void OnMouseDown(int x, int y);

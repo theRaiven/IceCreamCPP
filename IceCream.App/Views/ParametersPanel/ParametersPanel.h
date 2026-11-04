@@ -1,94 +1,96 @@
 #pragma once
-
-#include "../../ViewModels/MainViewModel.h"
-#include <string>
-#include <functional>
-#include <array>
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+// Windows types must be declared before the common-controls headers.
 #include <windows.h>
+
+#include "../../ViewModels/MainViewModel.h"
+#include <array>
+#include <commctrl.h>
+#include <functional>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace IceCream::App::Views
 {
-	class ParametersPanel
-	{
-	private:
-		int x_ = 0;
-		int y_ = 0;
-		int width_ = 340;
-		int height_ = 720;
-		int activeField_ = -1;
-		int dragging_ = -1;
-		std::string input_;
-		std::string error_;
-		bool replaceInput_ = false;
-		unsigned int font_ = 0;
-		inline static ParametersPanel* nativeInstance_ = nullptr;
-		HWND parent_ = nullptr;
-		std::array<HWND, 5> editors_{};
-		HWND applyButton_ = nullptr;
-		HWND sideButton_ = nullptr;
-		HWND shapePicker_ = nullptr;
-		int shapeMode_ = 0;
-		bool applyingShape_ = false;
-		std::string lastFormula_;
-		std::string customDraft_ = "x^2 + y^2";
-		HFONT nativeFont_ = nullptr;
-		WNDPROC parentProcedure_ = nullptr;
-		WNDPROC editProcedure_ = nullptr;
-		ViewModels::MainViewModel* model_ = nullptr;
-		std::function<void()> onChanged_;
-		std::uint64_t nativeRevision_ = static_cast<std::uint64_t>(-1);
+class ParametersPanel
+{
+    ViewModels::MainViewModel *model_ = nullptr;
+    std::function<void()> changed_;
+    HWND parent_ = nullptr, panel_ = nullptr, content_ = nullptr;
+    HFONT font_ = nullptr, hintFont_ = nullptr;
+    HBRUSH background_ = nullptr, fieldBrush_ = nullptr;
+    std::vector<HWND> controls_;
+    std::array<bool, 4> expanded_{{true, false, false, true}};
+    bool appearanceTab_ = false, syncing_ = false, panelOpen_ = false;
+    int activePage_ = 0;
+    std::vector<Core::Services::IntegralPart> drafts_;
+    void LoadDrafts();
+    void StoreDrafts();
+    void UpdateIntegralPreview(size_t part);
+    void IntegralCommand(int id, int notification);
+    int scroll_ = 0, contentHeight_ = 0, height_ = 800, width_ = 400;
+    std::uint64_t revision_ = ~std::uint64_t(0);
+    HWND Make(const wchar_t *cls, const wchar_t *text, int id, DWORD style = 0);
+    HWND Control(int id) const;
+    std::map<HWND, RECT> positions_;
+    int viewportX_ = -1, viewportY_ = -1, viewportWidth_ = -1, viewportHeight_ = -1;
+    bool viewportOpen_ = false;
+    int hintFontSize_ = 0;
+    std::array<std::optional<double>, 6> pendingSection_{};
+    std::optional<int> pendingHintSize_, pendingCoordinateSize_;
+    bool sliderTimer_ = false;
+    void QueueSlider(int id, bool finish);
+    void FlushSliders();
+    void RefreshTextSizes();
+    void SetText(int id, const wchar_t *value);
+    void Layout();
+    void Sync();
+    void Theme();
+    void Notify();
+    void ApplyShape();
+    void ApplySection();
+    void ApplyLighting();
+    void EditColor(int role);
+    void Scroll(int position);
+    double Number(int id) const;
+    void SetNumber(int id, double value);
+    void SetError(const wchar_t *message);
+    void Command(int id, int notification);
+    static LRESULT CALLBACK Procedure(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK EditProcedure(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
 
-		// Переключение между параметрами фигуры и освещением.
-		bool lightingTab_ = false;
-		HWND tabButton_ = nullptr;
-
-		// Выбор направленного, точечного или прожекторного источника.
-		HWND lightPicker_ = nullptr;
-
-		// Поля параметров освещения.
-		std::array<HWND, 11> lightEditors_{};
-
-		HWND applyLightButton_ = nullptr;
-		void InitializeLighting();
-		void SetLightingViewport();
-
-		void SwitchTab();
-		void UpdateLightingVisibility();
-
-		void SyncLightingEditors();
-		void ApplyLightingEditors();
-
-		void RenderLighting();
-
-		void ConfigureShapeEditors();
-		void SelectShape(int mode);
-		static const char* ShapeFormula(int mode);
-		static int DetectShape(const std::string& formula);
-
-		static LRESULT CALLBACK ParentProcedure(HWND, UINT, WPARAM, LPARAM);
-		static LRESULT CALLBACK EditProcedure(HWND, UINT, WPARAM, LPARAM);
-		void ApplyEditors();
-		void SyncEditors();
-		static void DrawString(int x, int y, const char* text);
-		static void Box(int x, int y, int width, int height);
-		static double Value(const ViewModels::MainViewModel& model, int field);
-		static void SetValue(ViewModels::MainViewModel& model, int field, double value);
-		static int FieldTop(int field);
-		bool Commit(ViewModels::MainViewModel& model);
-		void Drag(int localX, ViewModels::MainViewModel& model);
-
-	public:
-		void Initialize(ViewModels::MainViewModel& model, std::function<void()> onChanged);
-		void Destroy();
-		void SetViewport(int x, int y, int width, int height);
-		void Render(const ViewModels::MainViewModel& model);
-		bool Contains(int windowX, int windowY, int windowHeight) const;
-		bool Mouse(bool down, int x, int y, int windowHeight, ViewModels::MainViewModel& model);
-		bool Motion(int x, ViewModels::MainViewModel& model);
-		bool Keyboard(unsigned char key, ViewModels::MainViewModel& model);
-		bool Editing() const;
-	};
-}
+  public:
+    int OccupiedWidth() const
+    {
+        return panelOpen_ ? 440 : 0;
+    }
+    void Initialize(ViewModels::MainViewModel &, std::function<void()>);
+    void Destroy();
+    void SetViewport(int, int, int, int);
+    void Render(const ViewModels::MainViewModel &);
+    bool Contains(int, int, int) const
+    {
+        return false;
+    }
+    bool Mouse(bool, int, int, int, ViewModels::MainViewModel &)
+    {
+        return false;
+    }
+    bool Motion(int, ViewModels::MainViewModel &)
+    {
+        return false;
+    }
+    bool Keyboard(unsigned char, ViewModels::MainViewModel &)
+    {
+        return false;
+    }
+    bool Editing() const
+    {
+        return panel_ && (GetFocus() == panel_ || IsChild(panel_, GetFocus()));
+    }
+};
+} // namespace IceCream::App::Views

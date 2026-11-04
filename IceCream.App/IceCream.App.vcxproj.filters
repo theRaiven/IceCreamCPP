@@ -34,6 +34,7 @@
     <ClCompile Include="Views\MainWindow.cpp">
       <Filter>Views</Filter>
     </ClCompile>
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Integrals.cpp" />
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.cpp">
       <Filter>Views</Filter>
     </ClCompile>
@@ -52,6 +53,9 @@
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.Lighting.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ViewModels\AppearanceSettings.h">
+      <Filter>ViewModels</Filter>
+    </ClInclude>
     <ClInclude Include="ViewModels\MainViewModel.h">
       <Filter>ViewModels</Filter>
     </ClInclude>

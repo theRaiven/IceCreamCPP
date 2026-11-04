@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -52,7 +52,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VcpkgRoot)installed\$(VcpkgTriplet)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>opengl32.lib;glew32d.lib;freeglutd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>comctl32.lib;opengl32.lib;glew32d.lib;freeglutd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>cmd /c copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\debug\bin\glew32d.dll" "$(OutDir)" &amp;&amp; copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\debug\bin\freeglutd.dll" "$(OutDir)"</Command>
@@ -63,7 +63,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VcpkgRoot)installed\$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>opengl32.lib;glew32.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>comctl32.lib;opengl32.lib;glew32.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>cmd /c copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\bin\glew32.dll" "$(OutDir)" &amp;&amp; copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\bin\freeglut.dll" "$(OutDir)"</Command>
@@ -84,6 +84,7 @@
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.Lighting.cpp" />
     <ClCompile Include="Views\Graphics\ShaderSource\ShaderSource.cpp" />
     <ClCompile Include="Views\MainWindow.cpp" />
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Integrals.cpp" />
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.cpp" />
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.Editors.cpp" />
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.Input.cpp" />
@@ -91,6 +92,7 @@
     <ClCompile Include="Views\SectionView.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ViewModels\AppearanceSettings.h" />
     <ClInclude Include="ViewModels\MainViewModel.h" />
     <ClInclude Include="Views\Graphics\OrbitCamera\LightingSettings.h" />
     <ClInclude Include="Views\Graphics\Render\LineRenderer.h" />

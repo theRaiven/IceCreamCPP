@@ -20,7 +20,7 @@ namespace IceCream::App::Views::Graphics
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
-	void LineRenderer::Draw(const std::vector<float>& vertices, const glm::mat4& mvp, const glm::vec3& color, GLenum mode) const
+	void LineRenderer::Draw(const std::vector<float>& vertices, const glm::mat4& mvp, const glm::vec3& color, GLenum mode, float alpha) const
 	{
 		if (vertices.size() < (mode == GL_POINTS ? 3u : 6u))
 		{
@@ -29,12 +29,15 @@ namespace IceCream::App::Views::Graphics
 
 		glUseProgram(shaderProgram_);
 		glUniformMatrix4fv(glGetUniformLocation(shaderProgram_, "uMvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-		glUniform3fv(glGetUniformLocation(shaderProgram_, "uColor"), 1, glm::value_ptr(color));
+		glUniform4f(glGetUniformLocation(shaderProgram_, "uColor"),color.r,color.g,color.b,alpha);
+        const GLboolean blend=glIsEnabled(GL_BLEND);
+        if(alpha<1) {glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA); }
 
 		glBindVertexArray(vao_);
 		glBindBuffer(GL_ARRAY_BUFFER, vbo_);
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
 		glDrawArrays(mode, 0, static_cast<GLsizei>(vertices.size() / 3));
+        if(!blend) glDisable(GL_BLEND);
 		glBindVertexArray(0);
 		glUseProgram(0);
 	}

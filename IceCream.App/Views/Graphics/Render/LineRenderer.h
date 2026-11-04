@@ -18,7 +18,7 @@ namespace IceCream::App::Views::Graphics
 
 	public:
 		void Initialize();
-		void Draw(const std::vector<float>& vertices, const glm::mat4& mvp, const glm::vec3& color, GLenum mode) const;
+		void Draw(const std::vector<float>& vertices, const glm::mat4& mvp, const glm::vec3& color, GLenum mode, float alpha = 1.0f) const;
 		void Destroy();
 	};
 }

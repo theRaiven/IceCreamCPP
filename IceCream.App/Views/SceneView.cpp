@@ -8,6 +8,7 @@
 
 namespace IceCream::App::Views
 {
+    using ViewModels::ColorRole;
 	namespace
 	{
 		std::vector<float> PackPoints(const std::vector<Core::Geometry::Point3D>& points, bool closed)
@@ -69,6 +70,7 @@ namespace IceCream::App::Views
 	void SceneView::Initialize()
 	{
 		text_.Initialize();
+        hints_.Initialize();
 		meshRenderer_.Initialize();
 		lineRenderer_.Initialize();
 	}
@@ -81,9 +83,9 @@ namespace IceCream::App::Views
 		height_ = std::max(height, 1);
 	}
 
-	void SceneView::UploadMesh(const Core::Geometry::TriangleMesh& mesh)
+	void SceneView::UploadMesh(const Core::Geometry::TriangleMesh& mesh, const std::vector<std::array<float,4>>& colors)
 	{
-		meshRenderer_.Upload(mesh);
+		meshRenderer_.Upload(mesh, colors);
 		float minX = 0, maxX = 0, minY = 0, maxY = 0;
 		minZ_ = maxZ_ = static_cast<float>(mesh.Vertices().front().Z);
 
@@ -104,19 +106,25 @@ namespace IceCream::App::Views
 
 	void SceneView::Render(const ViewModels::MainViewModel& viewModel) const
 	{
-		glViewport(x_, y_, width_, height_);
+		const auto& appearance = viewModel.Appearance();
+        text_.SetSize(appearance.CoordinateSize);
+        hints_.SetSize(appearance.HintSize);
+        glViewport(x_, y_, width_, height_);
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_SCISSOR_TEST);
 		glScissor(x_, y_, width_, height_);
-		glClearColor(0.12f, 0.15f, 0.20f, 1.0f);
+		const auto background = appearance.Color(ColorRole::Scene);
+        glClearColor(background.r, background.g, background.b, 1);
 		glStencilMask(0xff);
 		glClearStencil(0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 		glDisable(GL_SCISSOR_TEST);
 
-		const glm::mat4 model = glm::translate(
+		const glm::mat4 rotation(viewModel.SurfaceRotation());
+        const glm::vec3 center = glm::vec3(viewModel.SurfaceRotation() * glm::dvec3(centerX_,centerY_,viewModel.CenterZ()));
+        const glm::mat4 model = glm::translate(
 		    glm::mat4(1.0f),
-		    glm::vec3(-centerX_, -centerY_, -static_cast<float>(viewModel.CenterZ())));
+		    -center) * rotation;
 
 		// Масштабируем сцену, чтобы поверхность и сетка помещались в кадре.
 		const float fit = std::max({1.0f, (maxZ_ - minZ_) / 5.0f, extent_ / 3.5f});
@@ -127,7 +135,7 @@ namespace IceCream::App::Views
 		    0.1f,
 		    100.0f);
 		const glm::mat4 mvp = projection * view * model;
-		DrawCoordinates(mvp);
+		DrawCoordinates(projection * view * glm::translate(glm::mat4(1), -glm::vec3(viewModel.SurfaceRotation() * glm::dvec3(centerX_,centerY_,viewModel.CenterZ()))), appearance, glm::mat3(rotation));
 		const float joinHeight = static_cast<float>(viewModel.Parameters().BaseHeight);
 
 		const auto& plane = viewModel.SectionPlane();
@@ -138,7 +146,7 @@ namespace IceCream::App::Views
 
 		meshRenderer_.RenderShadowMap(viewModel.Lighting());
 
-		meshRenderer_.Draw(model, view, projection, joinHeight, cutPlane, false, viewModel.TransparentPositive(), viewModel.HasPartJoin(), viewModel.Lighting());
+		meshRenderer_.Draw(model, view, projection, joinHeight, cutPlane, false, viewModel.TransparentPositive(), viewModel.HasPartJoin(), viewModel.Lighting(), appearance);
 
 		// Трафарет позволяет закрасить невыпуклые сечения с отверстиями.
 		glEnable(GL_STENCIL_TEST);
@@ -185,13 +193,13 @@ namespace IceCream::App::Views
 			    plane.ToGlobal({maxU + .01, maxV + .01}), plane.ToGlobal({minU - .01, maxV + .01})};
 			glEnable(GL_POLYGON_OFFSET_FILL);
 			glPolygonOffset(1.0f, 1.0f);
-			lineRenderer_.Draw(PackPoints(corners, false), mvp, glm::vec3(.98f, .70f, .23f), GL_TRIANGLE_FAN);
+			lineRenderer_.Draw(PackPoints(corners, false), mvp, glm::vec3(appearance.Color(ColorRole::Contour)), GL_TRIANGLE_FAN);
 			glDisable(GL_POLYGON_OFFSET_FILL);
 		}
 
 		glDisable(GL_STENCIL_TEST);
 		glStencilMask(0xff);
-		meshRenderer_.Draw(model, view, projection, joinHeight, cutPlane, true, viewModel.TransparentPositive(), viewModel.HasPartJoin(), viewModel.Lighting());
+		meshRenderer_.Draw(model, view, projection, joinHeight, cutPlane, true, viewModel.TransparentPositive(), viewModel.HasPartJoin(), viewModel.Lighting(), appearance);
 
 		glDepthFunc(GL_LEQUAL);
 		glLineWidth(1.0f);
@@ -203,11 +211,11 @@ namespace IceCream::App::Views
 
 		for (const auto& contour : viewModel.Section().Contours())
 		{
-			lineRenderer_.Draw(PackPoints(contour.Points3D(), contour.IsClosed()), mvp, glm::vec3(1.0f, .82f, .30f), GL_LINE_STRIP);
+			lineRenderer_.Draw(PackPoints(contour.Points3D(), contour.IsClosed()), mvp, glm::vec3(appearance.Color(ColorRole::Contour)), GL_LINE_STRIP, appearance.Color(ColorRole::Contour).a);
 		}
 		// Границы частей рисуем отдельно от контура сечения.
 		glLineWidth(3.0f);
-		const glm::vec3 seamColor(.98f, .38f, .84f);
+		const glm::vec3 seamColor(appearance.Color(ColorRole::Seam));
 
 		if (viewModel.HasPartJoin())
 		{
@@ -219,78 +227,82 @@ namespace IceCream::App::Views
 				p.Y *= 1.001;
 			}
 
-			lineRenderer_.Draw(PackPoints(ring, true), mvp, seamColor, GL_LINE_STRIP);
+			lineRenderer_.Draw(PackPoints(ring, true), mvp, seamColor, GL_LINE_STRIP, appearance.Color(ColorRole::Seam).a);
 
 			for (const auto& trace : viewModel.JoinInSection())
 			{
 				lineRenderer_.Draw(PackPoints(trace.Points3D(), trace.IsClosed()), mvp, seamColor,
-				                   trace.Points3D().size() == 1 ? GL_POINTS : GL_LINE_STRIP);
+				                   trace.Points3D().size() == 1 ? GL_POINTS : GL_LINE_STRIP, appearance.Color(ColorRole::Seam).a);
 			}
 		}
 
-		if (viewModel.IsHeightField())
+		if (viewModel.IsHeightField() || viewModel.IsIntegralBody())
 		{
 			glPointSize(6);
 
 			for (const auto& edge : viewModel.SurfaceEdges())
 			{
-				lineRenderer_.Draw(PackPoints(edge, false), mvp, seamColor, GL_LINE_STRIP);
+				lineRenderer_.Draw(PackPoints(edge, false), mvp, seamColor, GL_LINE_STRIP, appearance.Color(ColorRole::Seam).a);
 			}
 		}
 
 		glLineWidth(1.0f);
 		glDepthFunc(GL_LESS);
 		glDisable(GL_DEPTH_TEST);
-		DrawOrientation(view);
-		text_.Screen(16, height_ - 25, width_, height_, glm::vec3(.9f), "3D: координатная сцена");
-		text_.Screen(16, height_ - 46, width_, height_, glm::vec3(.75f), "X - красный; Y - зелёный; Z - синий");
-
-		if (viewModel.HasPartJoin() || viewModel.IsHeightField())
-		{
-			text_.Screen(16, height_ - 67, width_, height_, seamColor, "Пурпурный - границы частей фигуры");
-		}
+		DrawOrientation(view, appearance);
+        char status[128];
+        std::snprintf(status, sizeof(status), "Интеграл / объём: %.5g", viewModel.Volume());
+        text_.Screen(16, height_-80, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), status);
+        if (appearance.ShowHints) {
+            hints_.Screen(16,height_-62,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"ЛКМ: вращать · ПКМ: перемещать · колесо: масштаб");
+        }
 
 		glEnable(GL_DEPTH_TEST);
 	}
 
-	void SceneView::DrawCoordinates(const glm::mat4& mvp) const
+	void SceneView::DrawCoordinates(const glm::mat4& mvp, const ViewModels::AppearanceSettings& appearance, const glm::mat3& rotation) const
 	{
-		const float step = std::max(1.0f, std::ceil(extent_ / 8));
+        float extent=2, minZ=0, maxZ=1;
+        for(float x : {-extent_,extent_}) for(float y : {-extent_,extent_}) for(float z : {minZ_,maxZ_}) {
+            auto p=rotation*glm::vec3(x,y,z);extent=std::max({extent,std::abs(p.x),std::abs(p.y)});minZ=std::min(minZ,p.z);maxZ=std::max(maxZ,p.z);
+        }
+        extent=std::ceil(extent);
+		const float step = std::max(1.0f, std::ceil(extent / 8));
 		std::vector<float> grid;
-		const float floorZ = std::min(0.0f, minZ_);
+		const float floorZ = std::min(0.0f, minZ);
 
-		for (float t = -extent_; t <= extent_ + .01f; t += step)
+		for (float t = -extent; t <= extent + .01f; t += step)
 		{
-			grid.insert(grid.end(), {t, -extent_, floorZ, t, extent_, floorZ,
-			                         -extent_, t, floorZ, extent_, t, floorZ});
+			grid.insert(grid.end(), {t, -extent, floorZ, t, extent, floorZ,
+			                         -extent, t, floorZ, extent, t, floorZ});
 		}
 
-		lineRenderer_.Draw(grid, mvp, glm::vec3(.23f, .28f, .34f), GL_LINES);
-		const glm::vec3 colors[] = {{.98f, .32f, .29f}, {.30f, .88f, .46f}, {.35f, .66f, 1}};
-		const float zEnd = std::max(1.0f, maxZ_ + .6f);
+		lineRenderer_.Draw(grid, mvp, glm::vec3(appearance.Color(ColorRole::Grid)), GL_LINES);
+		const glm::vec3 colors[] = {glm::vec3(appearance.Color(ColorRole::AxisX)), glm::vec3(appearance.Color(ColorRole::AxisY)), glm::vec3(appearance.Color(ColorRole::AxisZ))};
+		const float zEnd = std::max(1.0f, maxZ + .6f);
 		glLineWidth(2);
-		lineRenderer_.Draw({-extent_, 0, 0, extent_, 0, 0, extent_, 0, 0, extent_ - .22f, .10f, 0,
-		                    extent_, 0, 0, extent_ - .22f, -.10f, 0},
+		lineRenderer_.Draw({-extent, 0, 0, extent, 0, 0, extent, 0, 0, extent - .22f, .10f, 0,
+		                    extent, 0, 0, extent - .22f, -.10f, 0},
 		                   mvp, colors[0], GL_LINES);
-		lineRenderer_.Draw({0, -extent_, 0, 0, extent_, 0, 0, extent_, 0, .10f, extent_ - .22f, 0,
-		                    0, extent_, 0, -.10f, extent_ - .22f, 0},
+		lineRenderer_.Draw({0, -extent, 0, 0, extent, 0, 0, extent, 0, .10f, extent - .22f, 0,
+		                    0, extent, 0, -.10f, extent - .22f, 0},
 		                   mvp, colors[1], GL_LINES);
-		lineRenderer_.Draw({0, 0, std::min(0.0f, minZ_), 0, 0, zEnd, 0, 0, zEnd, .10f, 0, zEnd - .22f,
+		lineRenderer_.Draw({0, 0, std::min(0.0f, minZ), 0, 0, zEnd, 0, 0, zEnd, .10f, 0, zEnd - .22f,
 		                    0, 0, zEnd, -.10f, 0, zEnd - .22f},
 		                   mvp, colors[2], GL_LINES);
-		text_.World({extent_, 0, 0}, mvp, colors[0], "X");
-		text_.World({0, extent_, 0}, mvp, colors[1], "Y");
+		text_.World({extent, 0, 0}, mvp, colors[0], "X");
+		text_.World({0, extent, 0}, mvp, colors[1], "Y");
 		text_.World({0, 0, zEnd}, mvp, colors[2], "Z");
 		char number[24];
 
-		for (float t = -extent_ + step; t < extent_; t += step)
+		for (float t = -extent + step; t < extent; t += step)
 		{
 			if (std::abs(t) < .01f)
 			{
 				continue;
 			}
 
-			lineRenderer_.Draw({t, -.06f, 0, t, .06f, 0, -.06f, t, 0, .06f, t, 0}, mvp, glm::vec3(.65f), GL_LINES);
+			lineRenderer_.Draw({t, -.06f, 0, t, .06f, 0, -.06f, t, 0, .06f, t, 0}, mvp, glm::vec3(appearance.Color(ColorRole::Text)), GL_LINES);
 			std::snprintf(number, sizeof(number), "%g", t);
 			text_.World({t, -.17f, 0}, mvp, colors[0], number);
 			text_.World({-.17f, t, 0}, mvp, colors[1], number);
@@ -305,16 +317,16 @@ namespace IceCream::App::Views
 			text_.World({.10f, 0, z}, mvp, colors[2], number);
 		}
 
-		text_.World({.06f, .06f, .03f}, mvp, glm::vec3(.9f), "0");
+		text_.World({.06f, .06f, .03f}, mvp, glm::vec3(appearance.Color(ColorRole::Text)), "0");
 		glLineWidth(1);
 	}
 
-	void SceneView::DrawOrientation(const glm::mat4& view) const
+	void SceneView::DrawOrientation(const glm::mat4& view, const ViewModels::AppearanceSettings& appearance) const
 	{
 		const glm::mat4 ortho = glm::ortho(0.0f, static_cast<float>(width_), 0.0f, static_cast<float>(height_));
-		lineRenderer_.Draw({12, 12, 0, 118, 12, 0, 118, 122, 0, 12, 122, 0}, ortho, glm::vec3(.09f, .12f, .16f), GL_TRIANGLE_FAN);
-		text_.Screen(22, 105, width_, height_, glm::vec3(.8f), "Ориентация");
-		const glm::vec3 colors[] = {{.98f, .32f, .29f}, {.30f, .88f, .46f}, {.35f, .66f, 1}};
+		lineRenderer_.Draw({12, 12, 0, 118, 12, 0, 118, 122, 0, 12, 122, 0}, ortho, glm::vec3(appearance.Color(ColorRole::Panel)), GL_TRIANGLE_FAN);
+		text_.Screen(22, 105, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "Ориентация");
+		const glm::vec3 colors[] = {glm::vec3(appearance.Color(ColorRole::AxisX)), glm::vec3(appearance.Color(ColorRole::AxisY)), glm::vec3(appearance.Color(ColorRole::AxisZ))};
 		const char* names[] = {"X", "Y", "Z"};
 		const glm::mat3 rotation(view);
 		glLineWidth(2.5f);
@@ -378,6 +390,7 @@ namespace IceCream::App::Views
 	void SceneView::Destroy()
 	{
 		text_.Destroy();
+        hints_.Destroy();
 		meshRenderer_.Destroy();
 		lineRenderer_.Destroy();
 	}

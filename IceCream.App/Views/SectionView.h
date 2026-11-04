@@ -14,6 +14,7 @@ namespace IceCream::App::Views
 	private:
 		Graphics::LineRenderer lineRenderer_;
 		Graphics::OverlayText text_;
+        Graphics::OverlayText hints_;
 		int x_ = 0;
 		int y_ = 0;
 		int width_ = 1;
