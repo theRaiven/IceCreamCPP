@@ -14,7 +14,7 @@ namespace IceCream::Core::Profiles
 {
     namespace
     {
-        using Function = function<double(double, double)>;
+        using Function = function<double(double, double, double)>;
 
         class Parser
         {
@@ -69,10 +69,10 @@ namespace IceCream::Core::Profiles
 
                 auto right = Sum();
 
-                return [left, right, operation, equal](double z, double y)
+                return [left, right, operation, equal](double x, double y, double z)
                 {
-                    double leftValue = left(z, y);
-                    double rightValue = right(z, y);
+                    double leftValue = left(x, y, z);
+                    double rightValue = right(x, y, z);
 
                     if (operation == '<')
                     {
@@ -92,18 +92,18 @@ namespace IceCream::Core::Profiles
                     {
                         auto right = Product();
 
-                        result = [result, right](double z, double y)
+                        result = [result, right](double x, double y, double z)
                         {
-                            return result(z, y) + right(z, y);
+                            return result(x, y, z) + right(x, y, z);
                         };
                     }
                     else if (Take('-'))
                     {
                         auto right = Product();
 
-                        result = [result, right](double z, double y)
+                        result = [result, right](double x, double y, double z)
                         {
-                            return result(z, y) - right(z, y);
+                            return result(x, y, z) - right(x, y, z);
                         };
                     }
                     else
@@ -122,18 +122,18 @@ namespace IceCream::Core::Profiles
                     {
                         auto right = Unary();
 
-                        result = [result, right](double z, double y)
+                        result = [result, right](double x, double y, double z)
                         {
-                            return result(z, y) * right(z, y);
+                            return result(x, y, z) * right(x, y, z);
                         };
                     }
                     else if (Take('/'))
                     {
                         auto right = Unary();
 
-                        result = [result, right](double z, double y)
+                        result = [result, right](double x, double y, double z)
                         {
-                            return result(z, y) / right(z, y);
+                            return result(x, y, z) / right(x, y, z);
                         };
                     }
                     else
@@ -161,9 +161,9 @@ namespace IceCream::Core::Profiles
                 {
                     auto value = Unary();
 
-                    result = [value](double z, double y)
+                    result = [value](double x, double y, double z)
                     {
-                        return -value(z, y);
+                        return -value(x, y, z);
                     };
                 }
                 else
@@ -174,9 +174,9 @@ namespace IceCream::Core::Profiles
                     {
                         auto exponent = Unary();
 
-                        result = [result, exponent](double z, double y)
+                        result = [result, exponent](double x, double y, double z)
                         {
-                            return pow(result(z, y), exponent(z, y));
+                            return pow(result(x, y, z), exponent(x, y, z));
                         };
                     }
                 }
@@ -218,7 +218,7 @@ namespace IceCream::Core::Profiles
 
                     position += end - begin;
 
-                    return [value](double, double)
+                    return [value](double, double, double)
                         {
                             return value;
                         };
@@ -240,25 +240,27 @@ namespace IceCream::Core::Profiles
 
                 const auto param = parameters;
 
-                if (name == "y")
+                if (name == "y" || name == "phi")
                 {
-                    return [](double, double y)
+                    return [](double, double y, double)
                         {
                             return y;
                         };
                 }
 
-                if (name == "z" || name == "x")
+                if (name == "z")
                 {
-                    return [](double z, double)
+                    return [](double, double, double z)
                         {
                             return z;
                         };
                 }
 
+                if (name == "x" || name == "r") return [](double x, double, double) { return x; };
+
                 if (name == "H")
                 {
-                    return [param](double, double)
+                    return [param](double, double, double)
                         {
                             return param.BaseHeight;
                         };
@@ -266,7 +268,7 @@ namespace IceCream::Core::Profiles
 
                 if (name == "R" || name == "radius")
                 {
-                    return [param](double, double)
+                    return [param](double, double, double)
                         {
                             return param.JoinRadius;
                         };
@@ -274,7 +276,7 @@ namespace IceCream::Core::Profiles
 
                 if (name == "p")
                 {
-                    return [param](double, double)
+                    return [param](double, double, double)
                         {
                             return param.BaseExponent;
                         };
@@ -282,7 +284,7 @@ namespace IceCream::Core::Profiles
 
                 if (name == "h")
                 {
-                    return [param](double, double)
+                    return [param](double, double, double)
                         {
                             return param.CapHeight;
                         };
@@ -290,7 +292,7 @@ namespace IceCream::Core::Profiles
 
                 if (name == "L" || name == "height")
                 {
-                    return [param](double, double)
+                    return [param](double, double, double)
                         {
                             return param.BaseHeight +  param.CapHeight;
                         };
@@ -298,7 +300,7 @@ namespace IceCream::Core::Profiles
 
                 if (name == "pi")
                 {
-                    return [](double, double)
+                    return [](double, double, double)
                         {
                             return acos(-1.0);
                         };
@@ -330,9 +332,9 @@ namespace IceCream::Core::Profiles
 
                 if (name == "if" && arguments.size() == 3)
                 {
-                    return [arguments](double z, double y)
+                    return [arguments](double x, double y, double z)
                         {
-                            return arguments[0](z, y) != 0 ? arguments[1](z, y) : arguments[2](z, y);
+                            return arguments[0](x, y, z) != 0 ? arguments[1](x, y, z) : arguments[2](x, y, z);
                         };
                 }
 
@@ -343,25 +345,25 @@ namespace IceCream::Core::Profiles
 
                     if (name == "min")
                     {
-                        return [first, second](double z, double y)
+                        return [first, second](double x, double y, double z)
                             {
-                                return min(first(z, y), second(z, y));
+                                return min(first(x, y, z), second(x, y, z));
                             };
                     }
 
                     if (name == "max")
                     {
-                        return [first, second](double z, double y)
+                        return [first, second](double x, double y, double z)
                             {
-                                return max(first(z, y), second(z, y));
+                                return max(first(x, y, z), second(x, y, z));
                             };
                     }
 
                     if (name == "pow")
                     {
-                        return [first, second](double z, double y)
+                        return [first, second](double x, double y, double z)
                             {
-                                return pow(first(z, y), second(z, y));
+                                return pow(first(x, y, z), second(x, y, z));
                             };
                     }
                 }
@@ -372,49 +374,49 @@ namespace IceCream::Core::Profiles
 
                     if (name == "sqrt")
                     {
-                        return [argument](double z, double y)
+                        return [argument](double x, double y, double z)
                             {
-                                return sqrt(argument(z, y));
+                                return sqrt(argument(x, y, z));
                             };
                     }
 
                     if (name == "sin")
                     {
-                        return [argument](double z, double y)
+                        return [argument](double x, double y, double z)
                             {
-                                return sin(argument(z, y));
+                                return sin(argument(x, y, z));
                             };
                     }
 
                     if (name == "cos")
                     {
-                        return [argument](double z, double y)
+                        return [argument](double x, double y, double z)
                             {
-                                return cos(argument(z, y));
+                                return cos(argument(x, y, z));
                             };
                     }
 
                     if (name == "abs")
                     {
-                        return [argument](double z, double y)
+                        return [argument](double x, double y, double z)
                             {
-                                return abs(argument(z, y));
+                                return abs(argument(x, y, z));
                             };
                     }
 
                     if (name == "exp")
                     {
-                        return [argument](double z, double y)
+                        return [argument](double x, double y, double z)
                             {
-                                return exp(argument(z, y));
+                                return exp(argument(x, y, z));
                             };
                     }
 
                     if (name == "log")
                     {
-                        return [argument](double z, double y)
+                        return [argument](double x, double y, double z)
                             {
-                                return log(argument(z, y));
+                                return log(argument(x, y, z));
                             };
                     }
                 }
@@ -439,14 +441,15 @@ namespace IceCream::Core::Profiles
             }
         };
     }
-    function<double(double, double)> CompileExpression(const string& formula, const IceCreamParameters& parameters)
+    function<double(double,double,double)> CompileSpatialExpression(const string& formula, const IceCreamParameters& parameters)
     {
-        if (formula.empty() || formula.size() > 512)
-        {
-            throw invalid_argument("Formula must contain 1 to 512 characters");
-        }
-
-        return Parser(formula, parameters).Parse();
+        if(formula.empty() || formula.size()>512) throw invalid_argument("Formula must contain 1 to 512 characters");
+        return Parser(formula,parameters).Parse();
+    }
+    function<double(double,double)> CompileExpression(const string& formula, const IceCreamParameters& parameters)
+    {
+        auto f=CompileSpatialExpression(formula,parameters);
+        return [f](double x,double y) { return f(x,y,x); };
     }
 
     const char* FormulaProfile::DefaultFormula()

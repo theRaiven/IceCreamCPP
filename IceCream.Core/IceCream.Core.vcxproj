@@ -64,6 +64,7 @@
     <ClCompile Include="Profiles\SphericalCapProfile.cpp" />
     <ClCompile Include="Profiles\TwoPartProfile.cpp" />
     <ClCompile Include="Services\MeshSectionCalculator.cpp" />
+    <ClCompile Include="Services\IntegralBodyBuilder.cpp" />
     <ClCompile Include="Services\HeightFieldBuilder.cpp" />
     <ClCompile Include="Services\SectionAreaCalculator.cpp" />
     <ClCompile Include="Services\SurfaceMeshBuilder.cpp" />
@@ -87,6 +88,7 @@
     <ClInclude Include="Profiles\PowerProfile.h" />
     <ClInclude Include="Profiles\SphericalCapProfile.h" />
     <ClInclude Include="Services\MeshSectionCalculator.h" />
+    <ClInclude Include="Services\IntegralBodyBuilder.h" />
     <ClInclude Include="Services\HeightFieldBuilder.h" />
     <ClInclude Include="Services\SectionAreaCalculator.h" />
     <ClInclude Include="Services\SurfaceMeshBuilder.h" />
