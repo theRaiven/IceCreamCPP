@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "SectionContour.h"
-#include "../Geometry/Plane3D.h"
+#include "../../Geometry/Primitives/Plane3D.h"
 
 namespace IceCream::Core::Models
 {

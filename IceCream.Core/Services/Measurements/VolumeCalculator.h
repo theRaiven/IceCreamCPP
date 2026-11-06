@@ -1,7 +1,9 @@
 ﻿#pragma once
 
-#include "../Profiles/IceCreamProfile.h"
-#include "../Profiles/TwoPartProfile.h"
+#include "../../Profiles/Composite/IceCreamProfile.h"
+#include "../../Profiles/Composite/TwoPartProfile.h"
+#include "../../Profiles/Basic/IRadialProfile.h"
+#include "../../Geometry/Meshes/TriangleMesh.h"
 
 namespace IceCream::Core::Services
 {
@@ -23,6 +25,7 @@ namespace IceCream::Core::Services
 		/// <returns> Объём мороженого. </returns>
 		double Calculate(const IRadialProfile& profile, int intervals = 1000) const;
 
+		double Calculate(const Geometry::TriangleMesh& mesh) const;
 	private:
 		static double GetSectionArea(const IRadialProfile& profile, double z);
 	};

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "SphericalCapProfile.h"
+#include "../Basic/SphericalCapProfile.h"
 #include <memory>
 #include <algorithm>
 

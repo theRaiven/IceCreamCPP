@@ -1,4 +1,6 @@
 ﻿#include "VolumeCalculator.h"
+#include <cmath>
+#include <stdexcept>
 
 namespace IceCream::Core::Services
 {
@@ -39,6 +41,22 @@ namespace IceCream::Core::Services
 		}
 
 		return volume;
+	}
+
+	double VolumeCalculator::Calculate(const Geometry::TriangleMesh& mesh) const
+	{
+		double volume = 0.0;
+
+		for (size_t i = 0; i < mesh.TriangleCount(); ++i)
+		{
+			auto [a, b, c] = mesh.GetTriangle(i);
+
+			volume += a.X * (b.Y * c.Z - b.Z * c.Y);
+			volume += a.Y * (b.Z * c.X - b.X * c.Z);
+			volume += a.Z * (b.X * c.Y - b.Y * c.X);
+		}
+
+		return std::abs(volume / 6.0);
 	}
 
 	double VolumeCalculator::GetSectionArea(const IRadialProfile& profile, double z)

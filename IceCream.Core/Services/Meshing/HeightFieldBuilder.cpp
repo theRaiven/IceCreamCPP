@@ -1,5 +1,5 @@
 #include "HeightFieldBuilder.h"
-#include "../Profiles/FormulaProfile.h"
+#include "../../Profiles/Basic/FormulaProfile.h"
 #include <algorithm>
 #include <cmath>
 #include <cctype>

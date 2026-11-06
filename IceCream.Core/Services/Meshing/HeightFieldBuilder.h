@@ -1,5 +1,6 @@
 #pragma once
-#include "../Geometry/TriangleMesh.h"
+#include "../../Geometry/Meshes/TriangleMesh.h"
+#include "../../Geometry/Primitives/Plane3D.h"
 #include <string>
 #include <vector>
 namespace IceCream::Core::Services

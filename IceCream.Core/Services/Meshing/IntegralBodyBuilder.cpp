@@ -1,5 +1,5 @@
 #include "IntegralBodyBuilder.h"
-#include "../Profiles/FormulaProfile.h"
+#include "../../Profiles/Basic/FormulaProfile.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>

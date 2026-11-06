@@ -2,14 +2,14 @@
 
 #include "IceCreamParameters.h"
 
-#include "../Geometry/TriangleMesh.h"
+#include "../Geometry/Meshes/TriangleMesh.h"
 
-#include "../Profiles/IRadialProfile.h"
-#include "../Profiles/PowerProfile.h"
-#include "../Profiles/SphericalCapProfile.h"
-#include "../Profiles/TwoPartProfile.h"
+#include "../Profiles/Basic/IRadialProfile.h"
+#include "../Profiles/Basic/PowerProfile.h"
+#include "../Profiles/Basic/SphericalCapProfile.h"
+#include "../Profiles/Composite/TwoPartProfile.h"
 
-#include "../Services/SurfaceMeshBuilder.h"
+#include "../Services/Meshing/SurfaceMeshBuilder.h"
 
 #include <memory>
 #include <stdexcept>

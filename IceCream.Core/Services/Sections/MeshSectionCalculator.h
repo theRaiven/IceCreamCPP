@@ -1,7 +1,8 @@
 ﻿#pragma once
 
-#include "../Geometry/TriangleMesh.h"
-#include "../Models/SectionResult.h"
+#include "../../Geometry/Meshes/TriangleMesh.h"
+#include "../../Geometry/Primitives/Plane3D.h"
+#include "../../Services/Sections/SectionResult.h"
 #include <set>
 #include <map>
 #include <algorithm>

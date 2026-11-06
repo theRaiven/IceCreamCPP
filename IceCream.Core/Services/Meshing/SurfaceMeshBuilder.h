@@ -1,7 +1,8 @@
 ﻿#pragma once
 
-#include "../Geometry/TriangleMesh.h"
-#include "../Profiles/IRadialProfile.h"
+#include "../../Geometry/Meshes/TriangleMesh.h"
+#include "../../Geometry/Primitives/Plane3D.h"
+#include "../../Profiles/Basic/IRadialProfile.h"
 
 #include <limits>
 

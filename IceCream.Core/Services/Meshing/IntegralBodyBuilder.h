@@ -1,5 +1,6 @@
 #pragma once
-#include "../Geometry/TriangleMesh.h"
+#include "../../Geometry/Meshes/TriangleMesh.h"
+#include "../../Geometry/Primitives/Point3D.h"
 #include <array>
 #include <string>
 #include <vector>

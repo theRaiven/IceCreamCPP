@@ -15,71 +15,79 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Geometry\Plane3D.cpp">
+    <ClCompile Include="Geometry\Primitives\Plane3D.cpp">
       <Filter>Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="Geometry\Point2D.cpp">
+    <ClCompile Include="Geometry\Primitives\Point2D.cpp">
       <Filter>Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="Geometry\Point3D.cpp">
+    <ClCompile Include="Geometry\Primitives\Point3D.cpp">
       <Filter>Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="Geometry\TriangleMesh.cpp">
+    <ClCompile Include="Geometry\Meshes\TriangleMesh.cpp">
       <Filter>Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="Geometry\Vector3D.cpp">
+    <ClCompile Include="Geometry\Primitives\Vector3D.cpp">
       <Filter>Geometry</Filter>
     </ClCompile>
     <ClCompile Include="Models\IceCreamBody.cpp">
       <Filter>Models</Filter>
     </ClCompile>
-    <ClCompile Include="Models\SectionContour.cpp">
+    <ClCompile Include="Services\Sections\SectionContour.cpp">
       <Filter>Models</Filter>
     </ClCompile>
-    <ClCompile Include="Models\SectionResult.cpp">
+    <ClCompile Include="Services\Sections\SectionResult.cpp">
       <Filter>Models</Filter>
     </ClCompile>
-    <ClCompile Include="Profiles\IceCreamProfile.cpp">
+    <ClCompile Include="Profiles\Composite\IceCreamProfile.cpp">
       <Filter>Profiles</Filter>
     </ClCompile>
-    <ClCompile Include="Profiles\PowerProfile.cpp">
+    <ClCompile Include="Profiles\Basic\PowerProfile.cpp">
       <Filter>Profiles</Filter>
     </ClCompile>
-    <ClCompile Include="Profiles\SphericalCapProfile.cpp">
+    <ClCompile Include="Profiles\Basic\SphericalCapProfile.cpp">
       <Filter>Profiles</Filter>
     </ClCompile>
-    <ClCompile Include="Services\MeshSectionCalculator.cpp">
+    <ClCompile Include="Services\Sections\MeshSectionCalculator.cpp">
       <Filter>Services</Filter>
     </ClCompile>
-    <ClCompile Include="Services\SectionAreaCalculator.cpp">
+    <ClCompile Include="Services\Measurements\SectionAreaCalculator.cpp">
       <Filter>Services</Filter>
     </ClCompile>
-    <ClCompile Include="Services\SurfaceMeshBuilder.cpp">
+    <ClCompile Include="Services\Meshing\SurfaceMeshBuilder.cpp">
       <Filter>Services</Filter>
     </ClCompile>
-    <ClCompile Include="Services\VolumeCalculator.cpp">
+    <ClCompile Include="Services\Measurements\VolumeCalculator.cpp">
       <Filter>Services</Filter>
     </ClCompile>
-    <ClCompile Include="Profiles\FormulaProfile.cpp" />
-    <ClCompile Include="Services\IntegralBodyBuilder.cpp"><Filter>Services</Filter></ClCompile>
-    <ClCompile Include="Services\HeightFieldBuilder.cpp" />
-    <ClCompile Include="Profiles\TwoPartProfile.cpp" />
-    <ClCompile Include="Profiles\CompositeProfile.cpp" />
+    <ClCompile Include="Profiles\Basic\FormulaProfile.cpp" />
+    <ClCompile Include="Services\Meshing\IntegralBodyBuilder.cpp">
+      <Filter>Services</Filter>
+    </ClCompile>
+    <ClCompile Include="Services\Meshing\HeightFieldBuilder.cpp" />
+    <ClCompile Include="Profiles\Composite\TwoPartProfile.cpp" />
+    <ClCompile Include="Profiles\Composite\CompositeProfile.cpp" />
+    <ClCompile Include="Expressions\Parsing\ExpressionParser.cpp" />
+    <ClCompile Include="Expressions\Inequalities\Inequality.cpp" />
+    <ClCompile Include="Expressions\Inequalities\InequalityParser.cpp" />
+    <ClCompile Include="Expressions\Inequalities\InequalityRegion.cpp" />
+    <ClCompile Include="Services\Meshing\ImplicitSurfaceBuilder.cpp" />
+    <ClCompile Include="Services\Meshing\MeshClipper.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Geometry\Plane3D.h">
+    <ClInclude Include="Geometry\Primitives\Plane3D.h">
       <Filter>Geometry</Filter>
     </ClInclude>
-    <ClInclude Include="Geometry\Point2D.h">
+    <ClInclude Include="Geometry\Primitives\Point2D.h">
       <Filter>Geometry</Filter>
     </ClInclude>
-    <ClInclude Include="Geometry\Point3D.h">
+    <ClInclude Include="Geometry\Primitives\Point3D.h">
       <Filter>Geometry</Filter>
     </ClInclude>
-    <ClInclude Include="Geometry\TriangleMesh.h">
+    <ClInclude Include="Geometry\Meshes\TriangleMesh.h">
       <Filter>Geometry</Filter>
     </ClInclude>
-    <ClInclude Include="Geometry\Vector3D.h">
+    <ClInclude Include="Geometry\Primitives\Vector3D.h">
       <Filter>Geometry</Filter>
     </ClInclude>
     <ClInclude Include="Models\IceCreamBody.h">
@@ -88,40 +96,50 @@
     <ClInclude Include="Models\IceCreamParameters.h">
       <Filter>Models</Filter>
     </ClInclude>
-    <ClInclude Include="Models\SectionContour.h">
+    <ClInclude Include="Services\Sections\SectionContour.h">
       <Filter>Models</Filter>
     </ClInclude>
-    <ClInclude Include="Models\SectionResult.h">
+    <ClInclude Include="Services\Sections\SectionResult.h">
       <Filter>Models</Filter>
     </ClInclude>
-    <ClInclude Include="Profiles\IRadialProfile.h">
+    <ClInclude Include="Profiles\Basic\IRadialProfile.h">
       <Filter>Profiles</Filter>
     </ClInclude>
-    <ClInclude Include="Profiles\IceCreamProfile.h">
+    <ClInclude Include="Profiles\Composite\IceCreamProfile.h">
       <Filter>Profiles</Filter>
     </ClInclude>
-    <ClInclude Include="Profiles\PowerProfile.h">
+    <ClInclude Include="Profiles\Basic\PowerProfile.h">
       <Filter>Profiles</Filter>
     </ClInclude>
-    <ClInclude Include="Profiles\SphericalCapProfile.h">
+    <ClInclude Include="Profiles\Basic\SphericalCapProfile.h">
       <Filter>Profiles</Filter>
     </ClInclude>
-    <ClInclude Include="Services\MeshSectionCalculator.h">
+    <ClInclude Include="Services\Sections\MeshSectionCalculator.h">
       <Filter>Services</Filter>
     </ClInclude>
-    <ClInclude Include="Services\SectionAreaCalculator.h">
+    <ClInclude Include="Services\Measurements\SectionAreaCalculator.h">
       <Filter>Services</Filter>
     </ClInclude>
-    <ClInclude Include="Services\SurfaceMeshBuilder.h">
+    <ClInclude Include="Services\Meshing\SurfaceMeshBuilder.h">
       <Filter>Services</Filter>
     </ClInclude>
-    <ClInclude Include="Services\VolumeCalculator.h">
+    <ClInclude Include="Services\Measurements\VolumeCalculator.h">
       <Filter>Services</Filter>
     </ClInclude>
-    <ClInclude Include="Profiles\FormulaProfile.h" />
-    <ClInclude Include="Services\IntegralBodyBuilder.h"><Filter>Services</Filter></ClInclude>
-    <ClInclude Include="Services\HeightFieldBuilder.h" />
-    <ClInclude Include="Profiles\TwoPartProfile.h" />
-    <ClInclude Include="Profiles\CompositeProfile.h" />
+    <ClInclude Include="Profiles\Basic\FormulaProfile.h" />
+    <ClInclude Include="Services\Meshing\IntegralBodyBuilder.h">
+      <Filter>Services</Filter>
+    </ClInclude>
+    <ClInclude Include="Services\Meshing\HeightFieldBuilder.h" />
+    <ClInclude Include="Profiles\Composite\TwoPartProfile.h" />
+    <ClInclude Include="Profiles\Composite\CompositeProfile.h" />
+    <ClInclude Include="Expressions\Parsing\CompiledExpression.h" />
+    <ClInclude Include="Expressions\Parsing\ExpressionParser.h" />
+    <ClInclude Include="Expressions\Inequalities\Inequality.h" />
+    <ClInclude Include="Expressions\Inequalities\InequalityParser.h" />
+    <ClInclude Include="Expressions\Inequalities\InequalityRegion.h" />
+    <ClInclude Include="Services\Meshing\ImplicitSurfaceBuilder.h" />
+    <ClInclude Include="Services\Meshing\MarchingCubesTables.h" />
+    <ClInclude Include="Services\Meshing\MeshClipper.h" />
   </ItemGroup>
 </Project>

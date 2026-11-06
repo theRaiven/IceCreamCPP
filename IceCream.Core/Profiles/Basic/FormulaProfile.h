@@ -1,11 +1,13 @@
 #pragma once
 #include "IRadialProfile.h"
-#include "../Models/IceCreamParameters.h"
+#include "../../Models/IceCreamParameters.h"
 #include <functional>
 #include <string>
 
 namespace IceCream::Core::Profiles
 {
+	using Models::IceCreamParameters;
+
     std::function<double(double,double)> CompileExpression(const std::string& formula, const Models::IceCreamParameters& parameters);
 
     std::function<double(double,double,double)> CompileSpatialExpression(const std::string& formula, const Models::IceCreamParameters& parameters);

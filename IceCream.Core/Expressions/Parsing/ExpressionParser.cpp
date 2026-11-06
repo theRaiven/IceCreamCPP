@@ -1,33 +1,28 @@
-#include "FormulaProfile.h"
+#include "ExpressionParser.h"
 
-#include <algorithm>
+#include <string>
+#include <stdexcept>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
-#include <stdexcept>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
-using namespace IceCream::Core::Models;
 
-namespace IceCream::Core::Profiles
+namespace IceCream::Core::Expressions
 {
     namespace
     {
-        using Function = function<double(double, double, double)>;
-
         class Parser
         {
         private:
             const string& text;
-            IceCreamParameters parameters;
+            const ExpressionParser::Constants& constants;
 
             size_t position = 0;
             int depth = 0;
 
-            /// <summary>
-            /// обраточка пробелов
-            /// </summary>
             void Space()
             {
                 while (position < text.size() && isspace(static_cast<unsigned char>(text[position])))
@@ -53,7 +48,7 @@ namespace IceCream::Core::Profiles
                 throw invalid_argument(string(message) + " (position " + to_string(position + 1) + ")");
             }
 
-            Function Compare()
+            CompiledExpression Compare()
             {
                 auto left = Sum();
 
@@ -82,67 +77,75 @@ namespace IceCream::Core::Profiles
                     return double(equal ? leftValue >= rightValue : leftValue > rightValue);
                 };
             }
-            Function Sum()
+            CompiledExpression Sum()
             {
-                auto result = Product();
+                auto left = Product();
 
                 while (true)
                 {
+                    Space();
+
                     if (Take('+'))
                     {
                         auto right = Product();
 
-                        result = [result, right](double x, double y, double z)
-                        {
-                            return result(x, y, z) + right(x, y, z);
-                        };
+                        left = [left, right](double x, double y, double z)
+                            {
+                                return left(x, y, z) + right(x, y, z);
+                            };
                     }
                     else if (Take('-'))
                     {
                         auto right = Product();
 
-                        result = [result, right](double x, double y, double z)
-                        {
-                            return result(x, y, z) - right(x, y, z);
-                        };
+                        left = [left, right](double x, double y, double z)
+                            {
+                                return left(x, y, z) - right(x, y, z);
+                            };
                     }
                     else
                     {
-                        return result;
+                        break;
                     }
                 }
-            }
-            Function Product()
-            {
-                auto result = Unary();
 
-                while(true)
+                return left;
+            }
+            CompiledExpression Product()
+            {
+                auto left = Unary();
+
+                while (true)
                 {
+                    Space();
+
                     if (Take('*'))
                     {
                         auto right = Unary();
 
-                        result = [result, right](double x, double y, double z)
-                        {
-                            return result(x, y, z) * right(x, y, z);
-                        };
+                        left = [left, right](double x, double y, double z)
+                            {
+                                return left(x, y, z) * right(x, y, z);
+                            };
                     }
                     else if (Take('/'))
                     {
                         auto right = Unary();
 
-                        result = [result, right](double x, double y, double z)
+                        left = [left, right](double x, double y, double z)
                         {
-                            return result(x, y, z) / right(x, y, z);
+                            return left(x, y, z) / right(x, y, z);
                         };
                     }
                     else
                     {
-                        return result;
+                        break;
                     }
                 }
+
+                return left;
             }
-            Function Unary()
+            CompiledExpression Unary()
             {
                 ++depth;
 
@@ -151,7 +154,7 @@ namespace IceCream::Core::Profiles
                     Error("Expression is too deeply nested");
                 }
 
-                Function result;
+                CompiledExpression result;
 
                 if (Take('+'))
                 {
@@ -176,16 +179,16 @@ namespace IceCream::Core::Profiles
 
                         result = [result, exponent](double x, double y, double z)
                         {
-                            return pow(result(x, y, z), exponent(x, y, z));
+                            return std::pow(result(x, y, z), exponent(x, y, z));
                         };
                     }
                 }
-
                 --depth;
                 return result;
             }
-            Function Atom()
+            CompiledExpression Atom()
             {
+                // Выражение в скобках
                 if (Take('('))
                 {
                     auto result = Compare();
@@ -197,121 +200,75 @@ namespace IceCream::Core::Profiles
 
                 Space();
 
-                if (position == text.size())
+                if (position >= text.size())
                 {
                     Error("Expected a value");
                 }
 
                 char current = text[position];
 
-                if (isdigit(static_cast<unsigned char>(current)) || current == '.')
+                // Число
+                if (std::isdigit(static_cast<unsigned char>(current)) || current == '.')
                 {
                     char* end = nullptr;
                     const char* begin = text.c_str() + position;
 
-                    double value = strtod(begin, &end);
+                    double value = std::strtod(begin, &end);
 
-                    if (end == begin || !isfinite(value))
+                    if (end == begin || !std::isfinite(value))
                     {
                         Error("Invalid number");
                     }
 
                     position += end - begin;
 
-                    return [value](double, double, double)
-                        {
-                            return value;
-                        };
+                    return [value](double, double, double) { return value; };
                 }
 
+                // Имя переменной, константы или функции
                 size_t start = position;
 
-                while (position < text.size() && isalpha(static_cast<unsigned char>(text[position])))
+                while (position < text.size() && std::isalpha(static_cast<unsigned char>(text[position])))
                 {
-                    ++position;
+                    position++;
                 }
 
-                string name = text.substr(start, position - start);
+                std::string name = text.substr(start, position - start);
 
                 if (name.empty())
                 {
                     Error("Unexpected character");
                 }
 
-                const auto param = parameters;
+                // Координаты
+                if (name == "x") return [](double x, double, double) { return x; };
+                if (name == "y") return [](double, double y, double) { return y; };
+                if (name == "z") return [](double, double, double z) { return z; };
 
-                if (name == "y" || name == "phi")
-                {
-                    return [](double, double y, double)
-                        {
-                            return y;
-                        };
-                }
-
-                if (name == "z")
-                {
-                    return [](double, double, double z)
-                        {
-                            return z;
-                        };
-                }
-
-                if (name == "x" || name == "r") return [](double x, double, double) { return x; };
-
-                if (name == "H")
-                {
-                    return [param](double, double, double)
-                        {
-                            return param.BaseHeight;
-                        };
-                }
-
-                if (name == "R" || name == "radius")
-                {
-                    return [param](double, double, double)
-                        {
-                            return param.JoinRadius;
-                        };
-                }
-
-                if (name == "p")
-                {
-                    return [param](double, double, double)
-                        {
-                            return param.BaseExponent;
-                        };
-                }
-
-                if (name == "h")
-                {
-                    return [param](double, double, double)
-                        {
-                            return param.CapHeight;
-                        };
-                }
-
-                if (name == "L" || name == "height")
-                {
-                    return [param](double, double, double)
-                        {
-                            return param.BaseHeight +  param.CapHeight;
-                        };
-                }
-
+                // Число Пи
                 if (name == "pi")
                 {
-                    return [](double, double, double)
-                        {
-                            return acos(-1.0);
-                        };
+                    double value = std::acos(-1.0);
+                    return [value](double, double, double) { return value; };
                 }
 
+                // Именованные константы
+                auto it = constants.find(name);
+
+                if (it != constants.end())
+                {
+                    double value = it->second;
+                    return [value](double, double, double) { return value; };
+                }
+
+                // Проверяем открывающую скобку функции
                 if (!Take('('))
                 {
                     Error("Unknown variable or missing (");
                 }
 
-                vector<Function> arguments;
+                // Разбираем аргументы функции
+                std::vector<CompiledExpression> arguments;
 
                 arguments.push_back(Compare());
 
@@ -330,14 +287,18 @@ namespace IceCream::Core::Profiles
                     Error("Expected )");
                 }
 
+                // Функция с тремя аргументами
                 if (name == "if" && arguments.size() == 3)
                 {
                     return [arguments](double x, double y, double z)
                         {
-                            return arguments[0](x, y, z) != 0 ? arguments[1](x, y, z) : arguments[2](x, y, z);
+                            return arguments[0](x, y, z) != 0
+                                ? arguments[1](x, y, z)
+                                : arguments[2](x, y, z);
                         };
                 }
 
+                // Функции с двумя аргументами
                 if (arguments.size() == 2)
                 {
                     auto first = arguments[0];
@@ -347,7 +308,7 @@ namespace IceCream::Core::Profiles
                     {
                         return [first, second](double x, double y, double z)
                             {
-                                return min(first(x, y, z), second(x, y, z));
+                                return std::min(first(x, y, z), second(x, y, z));
                             };
                     }
 
@@ -355,7 +316,7 @@ namespace IceCream::Core::Profiles
                     {
                         return [first, second](double x, double y, double z)
                             {
-                                return max(first(x, y, z), second(x, y, z));
+                                return std::max(first(x, y, z), second(x, y, z));
                             };
                     }
 
@@ -363,11 +324,12 @@ namespace IceCream::Core::Profiles
                     {
                         return [first, second](double x, double y, double z)
                             {
-                                return pow(first(x, y, z), second(x, y, z));
+                                return std::pow(first(x, y, z), second(x, y, z));
                             };
                     }
                 }
 
+                // Функции с одним аргументом
                 if (arguments.size() == 1)
                 {
                     auto argument = arguments[0];
@@ -376,7 +338,7 @@ namespace IceCream::Core::Profiles
                     {
                         return [argument](double x, double y, double z)
                             {
-                                return sqrt(argument(x, y, z));
+                                return std::sqrt(argument(x, y, z));
                             };
                     }
 
@@ -384,7 +346,7 @@ namespace IceCream::Core::Profiles
                     {
                         return [argument](double x, double y, double z)
                             {
-                                return sin(argument(x, y, z));
+                                return std::sin(argument(x, y, z));
                             };
                     }
 
@@ -392,7 +354,7 @@ namespace IceCream::Core::Profiles
                     {
                         return [argument](double x, double y, double z)
                             {
-                                return cos(argument(x, y, z));
+                                return std::cos(argument(x, y, z));
                             };
                     }
 
@@ -400,7 +362,7 @@ namespace IceCream::Core::Profiles
                     {
                         return [argument](double x, double y, double z)
                             {
-                                return abs(argument(x, y, z));
+                                return std::abs(argument(x, y, z));
                             };
                     }
 
@@ -408,7 +370,7 @@ namespace IceCream::Core::Profiles
                     {
                         return [argument](double x, double y, double z)
                             {
-                                return exp(argument(x, y, z));
+                                return std::exp(argument(x, y, z));
                             };
                     }
 
@@ -416,17 +378,19 @@ namespace IceCream::Core::Profiles
                     {
                         return [argument](double x, double y, double z)
                             {
-                                return log(argument(x, y, z));
+                                return std::log(argument(x, y, z));
                             };
                     }
                 }
 
                 Error("Unknown function or wrong argument count");
             }
-        public:
-            Parser(const string& text, IceCreamParameters parameters) : text(text), parameters(parameters) { }
 
-            Function Parse()
+        public:
+            Parser(const std::string& text, const ExpressionParser::Constants& constants)
+                : text(text), constants(constants) { }
+
+            CompiledExpression Parse()
             {
                 auto result = Compare();
 
@@ -441,71 +405,36 @@ namespace IceCream::Core::Profiles
             }
         };
     }
-    function<double(double,double,double)> CompileSpatialExpression(const string& formula, const IceCreamParameters& parameters)
-    {
-        if(formula.empty() || formula.size()>512) throw invalid_argument("Formula must contain 1 to 512 characters");
-        return Parser(formula,parameters).Parse();
-    }
-    function<double(double,double)> CompileExpression(const string& formula, const IceCreamParameters& parameters)
-    {
-        auto f=CompileSpatialExpression(formula,parameters);
-        return [f](double x,double y) { return f(x,y,x); };
-    }
 
-    const char* FormulaProfile::DefaultFormula()
+    CompiledExpression ExpressionParser::Compile(const std::string& formula, const Constants& constants)
     {
-        return "if(z<=H,R*(z/H)^p,sqrt(max(0,(1-(z-H)/h)*(R^2+h*(z-H)))))";
-    }
-    
-    FormulaProfile::FormulaProfile(const string& formula, const IceCreamParameters& parameters)
-        : FormulaProfile( formula, parameters, 0, parameters.BaseHeight + parameters.CapHeight){}
-
-    FormulaProfile::FormulaProfile(const string& formula, const IceCreamParameters& parameters, double minZ, double maxZ) : minZ_(minZ), maxZ_(maxZ)
-    {
-        if (!isfinite(minZ_) || !isfinite(maxZ_) || minZ_ >= maxZ_)
+        if (formula.empty() || formula.size() > 512)
         {
-            throw invalid_argument("Invalid formula profile range");
+            throw std::invalid_argument("Formula must contain 1 to 512 characters");
         }
 
-        auto expression = CompileExpression(formula, parameters);
+        return Parser(formula, constants).Parse();
+    }
 
-        expression_ = [expression](double z)
+    CompiledExpression ExpressionParser::CompileEquation(const string& formula, const Constants& constants)
+    {
+        size_t pos = formula.find('=');
+
+        if (pos == string::npos) return Compile(formula, constants);
+
+        if (pos == 0 || pos + 1 == formula.size() || formula.size() > 512 ||
+            formula.find('=', pos + 1) != string::npos ||
+            formula[pos - 1] == '<' || formula[pos - 1] == '>')
+        {
+            throw invalid_argument("Invalid equation");
+        }
+
+        auto left = Compile(formula.substr(0, pos), constants);
+        auto right = Compile(formula.substr(pos + 1), constants);
+
+        return [left, right](double x, double y, double z)
             {
-                return expression(z, 0);
+                return left(x, y, z) - right(x, y, z);
             };
-
-        for (int i = 0; i <= 2048; ++i)
-        {
-            double z = minZ_ + (maxZ_ - minZ_) * i / 2048.0;
-
-            double radius = GetRadius(z);
-
-            if (i > 0 && i < 2048 && radius <= 1e-8)
-            {
-                throw invalid_argument("Radius must be positive inside formula profile range");
-            }
-        }
-    }
-
-    double FormulaProfile::GetRadius(double z) const
-    {
-        if (!isfinite(z) || z < minZ_ || z > maxZ_)
-        {
-            throw out_of_range("Height outside formula domain");
-        }
-
-        double radius = expression_(z);
-
-        if (!isfinite(radius) ||radius < 0 ||  radius > 20)
-        {
-            throw invalid_argument("Formula radius must be finite and between 0 and 20");
-        }
-
-        if ((z == minZ_ || z == maxZ_) && radius < 1e-8)
-        {
-            return 0;
-        }
-
-        return radius;
     }
 }

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "../Models/SectionResult.h"
+#include "../../Services/Sections/SectionResult.h"
 
 namespace IceCream::Core::Services
 {

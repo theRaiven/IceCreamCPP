@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "../Geometry/Point3D.h"
-#include "../Geometry/Point2D.h"
+#include "../../Geometry/Primitives/Point3D.h"
+#include "../../Geometry/Primitives/Point2D.h"
 #include <vector>
 #include <utility>
 

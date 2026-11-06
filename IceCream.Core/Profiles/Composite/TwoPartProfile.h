@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IRadialProfile.h"
+#include "../Basic/IRadialProfile.h"
 
 #include <memory>
 
