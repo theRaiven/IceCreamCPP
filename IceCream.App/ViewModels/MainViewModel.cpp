@@ -1,9 +1,9 @@
 #include "MainViewModel.h"
 
-#include "../../IceCream.Core/Services/SurfaceMeshBuilder.h"
-#include "../../IceCream.Core/Services/VolumeCalculator.h"
-#include "../../IceCream.Core/Services/MeshSectionCalculator.h"
-#include "../../IceCream.Core/Services/SectionAreaCalculator.h"
+#include "../../IceCream.Core/Services/Meshing/SurfaceMeshBuilder.h"
+#include "../../IceCream.Core/Services/Measurements/VolumeCalculator.h"
+#include "../../IceCream.Core/Services/Measurements/SectionAreaCalculator.h"
+#include "../../IceCream.Core/Services/Sections/MeshSectionCalculator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -152,6 +152,46 @@ namespace IceCream::App::ViewModels
 		integralParts_.clear(); triangleColors_.clear();
         ++geometryRevision_;
 	}
+
+
+	void MainViewModel::ApplyImplicitSurface(const std::string& formula, Point3D min, Point3D max, int cellsX, int cellsY, int cellsZ)
+	{
+		auto expression = Core::Expressions::ExpressionParser::Compile(formula);
+
+		TriangleMesh mesh = ImplicitSurfaceBuilder().Build(expression, min, max, cellsX, cellsY, cellsZ);
+
+		if (mesh.Vertices().empty() || mesh.Indices().empty())
+		{
+			throw std::invalid_argument("Implicit surface is empty");
+		}
+
+		IceCreamBody body(parameters_, std::move(mesh));
+
+		auto nextPlane = CreateSectionPlane(false);
+		auto section = MeshSectionCalculator().Calculate(body.Mesh(), nextPlane);
+		double area = section.IsEmpty() ? 0.0 : SectionAreaCalculator().Calculate(section);
+
+		body_ = std::move(body);
+		sectionPlane_ = nextPlane;
+		section_ = std::move(section);
+		sectionArea_ = area;
+
+		volume_ = 0.0;
+		heightField_ = false;
+		dependentAxis_ = 2;
+
+		surfaceEdges_.clear();
+		joinBoundary_.clear();
+		joinDisk_.reset();
+		joinInSection_.clear();
+
+		integralParts_.clear();
+		triangleColors_.clear();
+		integralError_ = 0.0;
+
+		++geometryRevision_;
+	}
+
 
 	Plane3D MainViewModel::CreateSectionPlane(bool surface) const
 	{

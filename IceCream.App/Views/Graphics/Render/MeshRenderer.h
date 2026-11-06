@@ -1,7 +1,7 @@
 #pragma once
 
 #include <GL/glew.h>
-#include "../../../../IceCream.Core/Geometry/TriangleMesh.h"
+#include "../../../../IceCream.Core/Geometry/Meshes/TriangleMesh.h"
 #include "../OrbitCamera/LightingSettings.h"
 #include <glm/glm.hpp>
 #include "../../../ViewModels/AppearanceSettings.h"

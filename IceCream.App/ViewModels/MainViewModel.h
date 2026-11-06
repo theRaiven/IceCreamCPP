@@ -1,16 +1,19 @@
 #pragma once
 #include "AppearanceSettings.h"
-#include "../../IceCream.Core/Services/IntegralBodyBuilder.h"
+#include "../../IceCream.Core/Services/Meshing/IntegralBodyBuilder.h"
 
 #include "../../IceCream.Core/Models/IceCreamBody.h"
-#include "../../IceCream.Core/Models/SectionResult.h"
-#include "../../IceCream.Core/Geometry/Plane3D.h"
-#include "../../IceCream.Core/Profiles/FormulaProfile.h"
+#include "../../IceCream.Core/Services/Sections/SectionResult.h"
+#include "../../IceCream.Core/Geometry/Primitives/Plane3D.h"
+#include "../../IceCream.Core/Profiles/Basic/FormulaProfile.h"
+#include "../../IceCream.Core/Services/Meshing/ImplicitSurfaceBuilder.h"
+#include "../../IceCream.Core/Expressions/Parsing/ExpressionParser.h"
+#include <stdexcept>
 #include "../Views/Graphics/OrbitCamera/LightingSettings.h"
 #include <string>
 #include <cstdint>
 #include <optional>
-#include "../../IceCream.Core/Services/HeightFieldBuilder.h"
+#include "../../IceCream.Core/Services/Meshing/HeightFieldBuilder.h"
 
 namespace IceCream::App::ViewModels
 {
@@ -130,6 +133,7 @@ namespace IceCream::App::ViewModels
 		}
 
 		void ApplyHeightField(const Core::Services::HeightFieldBounds& bounds, const std::string& formula);
+		void ApplyImplicitSurface(const std::string& formula, Core::Geometry::Point3D min, Core::Geometry::Point3D max, int cellsX = 40, int cellsY = 40, int cellsZ = 40);
 		void ApplyShape(const Core::Models::IceCreamParameters& parameters, const std::string& formula);
 
 		bool HasPartJoin() const
