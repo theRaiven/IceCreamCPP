@@ -104,6 +104,7 @@
     <ClInclude Include="Views\ParametersPanel\ParametersPanel.h" />
     <ClInclude Include="Views\SceneView.h" />
     <ClInclude Include="Views\SectionView.h" />
+    <ClInclude Include="Views\Graphics\OrbitCamera\SectionCamera.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Views\Shaders\Line.frag" />

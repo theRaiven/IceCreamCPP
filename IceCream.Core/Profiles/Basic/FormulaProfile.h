@@ -10,7 +10,7 @@ namespace IceCream::Core::Profiles
 
     std::function<double(double,double)> CompileExpression(const std::string& formula, const Models::IceCreamParameters& parameters);
 
-    std::function<double(double,double,double)> CompileSpatialExpression(const std::string& formula, const Models::IceCreamParameters& parameters);
+    std::function<double(double,double,double)> CompileSpatialExpression(const std::string& formula, const Models::IceCreamParameters& parameters, bool bound = false);
 
     class FormulaProfile final : public IRadialProfile
     {

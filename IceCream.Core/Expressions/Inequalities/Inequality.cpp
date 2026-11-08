@@ -11,7 +11,8 @@ namespace IceCream::Core::Inequalities
 	/// </summary>
 	/// <param name="expression"> Выражение g(x,y,z) </param>
 	/// <param name="relation"> Отношение неравенства </param>
-	Inequality::Inequality(CompiledExpression expression, InequalityRelation relation) : expression_(std::move(expression)), relation_(relation) 
+	Inequality::Inequality(CompiledExpression expression, InequalityRelation relation, std::string label)
+		: expression_(std::move(expression)), relation_(relation), label_(std::move(label))
 	{
 		if (!expression_)
 		{

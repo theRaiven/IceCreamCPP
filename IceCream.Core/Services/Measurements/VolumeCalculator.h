@@ -4,6 +4,7 @@
 #include "../../Profiles/Composite/TwoPartProfile.h"
 #include "../../Profiles/Basic/IRadialProfile.h"
 #include "../../Geometry/Meshes/TriangleMesh.h"
+#include <optional>
 
 namespace IceCream::Core::Services
 {
@@ -26,6 +27,8 @@ namespace IceCream::Core::Services
 		double Calculate(const IRadialProfile& profile, int intervals = 1000) const;
 
 		double Calculate(const Geometry::TriangleMesh& mesh) const;
+		// No value for open, degenerate or inconsistently oriented meshes.
+		std::optional<double> TryCalculate(const Geometry::TriangleMesh& mesh) const;
 	private:
 		static double GetSectionArea(const IRadialProfile& profile, double z);
 	};

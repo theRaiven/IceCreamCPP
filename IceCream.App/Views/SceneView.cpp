@@ -201,11 +201,24 @@ namespace IceCream::App::Views
 		glStencilMask(0xff);
 		meshRenderer_.Draw(model, view, projection, joinHeight, cutPlane, true, viewModel.TransparentPositive(), viewModel.HasPartJoin(), viewModel.Lighting(), appearance);
 
+		if (appearance.ShowConstraintSurfaces)
+		{
+			std::vector<std::pair<float, const ViewModels::ConstraintSurface*>> guides;
+			for (const auto& guide : viewModel.ConstraintSurfaces())
+				if (!guide.Triangles.empty()) guides.emplace_back((view * model * glm::vec4(guide.Center, 1)).z, &guide);
+			std::sort(guides.begin(), guides.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+			glDepthMask(GL_FALSE);
+			glEnable(GL_POLYGON_OFFSET_FILL);
+			glPolygonOffset(-1.f, -1.f);
+			for (const auto& item : guides)
+				lineRenderer_.Draw(item.second->Triangles, mvp, item.second->Color, GL_TRIANGLES, .18f);
+			glDisable(GL_POLYGON_OFFSET_FILL);
+			glDepthMask(GL_TRUE);
+		}
+
 		glDepthFunc(GL_LEQUAL);
 		glLineWidth(1.0f);
-		lineRenderer_.Draw(PlaneFrame(plane, static_cast<float>(std::max({viewModel.Parameters().JoinRadius * 1.2,
-		                                                                  viewModel.Parameters().CapHeight, viewModel.CenterZ()}) +
-		                                                        0.5)),
+		lineRenderer_.Draw(PlaneFrame(plane, std::max({extent_, (maxZ_ - minZ_) * .6f, 2.0f}) + .5f),
 		                   mvp, glm::vec3(.45f, .53f, .60f), GL_LINE_STRIP);
 		glLineWidth(2.5f);
 
@@ -251,8 +264,42 @@ namespace IceCream::App::Views
 		glDisable(GL_DEPTH_TEST);
 		DrawOrientation(view, appearance);
         char status[128];
-        std::snprintf(status, sizeof(status), "Интеграл / объём: %.5g", viewModel.Volume());
+        if (!viewModel.HasVolume())
+            std::snprintf(status, sizeof(status), "Объём недоступен: сетка не замкнута");
+        else
+            std::snprintf(status, sizeof(status), viewModel.UsesMeshVolume() ? "Объём по сетке: %.5g" : "Интеграл / объём: %.5g", viewModel.Volume());
         text_.Screen(16, height_-80, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), status);
+        if (appearance.ShowConstraintSurfaces && !viewModel.ConstraintSurfaces().empty())
+        {
+            // Keep a long condition inside its own viewport, independently of font size.
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(x_, y_, width_, height_);
+            int row = height_ - 118;
+            const int rowHeight = appearance.HintSize + 6;
+            const size_t characters = static_cast<size_t>(std::max(12, (width_-32) / std::max(1, appearance.HintSize*2/3)));
+            for (size_t i = 0; i < viewModel.ConstraintSurfaces().size(); ++i)
+            {
+                if (row < 175)
+                {
+                    hints_.Screen(16, static_cast<float>(row), width_, height_, glm::vec3(appearance.Color(ColorRole::Text)),
+                        ("Ещё ограничений: " + std::to_string(viewModel.ConstraintSurfaces().size()-i)).c_str());
+                    break;
+                }
+                const auto& guide = viewModel.ConstraintSurfaces()[i];
+                std::string label = std::to_string(i+1) + ": " + guide.Condition;
+                if (guide.Undefined) label += " (не определена)";
+                else if (guide.Triangles.empty()) label += " (вне области показа)";
+                if (label.size() > characters)
+                {
+                    size_t end = characters-3;
+                    while (end > 0 && (static_cast<unsigned char>(label[end]) & 0xc0) == 0x80) --end;
+                    label = label.substr(0, end) + "...";
+                }
+                hints_.Screen(16, static_cast<float>(row), width_, height_, guide.Color, label.c_str());
+                row -= rowHeight;
+            }
+            glDisable(GL_SCISSOR_TEST);
+        }
         if (appearance.ShowHints) {
             hints_.Screen(16,height_-62,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"ЛКМ: вращать · ПКМ: перемещать · колесо: масштаб");
         }

@@ -12,7 +12,7 @@ namespace IceCream::App::Views
     using ViewModels::ColorRole;
 	namespace
 	{
-		std::vector<float> PackContour2D(const Core::Models::SectionContour& contour)
+		std::vector<float> PackContour2D(const Core::Models::SectionContour& contour, double centerX, double centerY)
 		{
 			std::vector<float> vertices;
 			const auto& points = contour.Points2D();
@@ -26,15 +26,15 @@ namespace IceCream::App::Views
 
 			for (const auto& point : points)
 			{
-				vertices.push_back(static_cast<float>(point.X));
-				vertices.push_back(static_cast<float>(point.Y));
+				vertices.push_back(static_cast<float>(point.X-centerX));
+				vertices.push_back(static_cast<float>(point.Y-centerY));
 				vertices.push_back(0.0f);
 			}
 
 			if (contour.IsClosed())
 			{
-				vertices.push_back(static_cast<float>(points.front().X));
-				vertices.push_back(static_cast<float>(points.front().Y));
+				vertices.push_back(static_cast<float>(points.front().X-centerX));
+				vertices.push_back(static_cast<float>(points.front().Y-centerY));
 				vertices.push_back(0.0f);
 			}
 
@@ -60,7 +60,28 @@ namespace IceCream::App::Views
 		y_ = y;
 		width_ = std::max(width, 1);
 		height_ = std::max(height, 1);
+        camera_.SetViewport(width_, height_);
 	}
+
+    bool SectionView::Contains(int x, int y, int windowHeight) const
+    {
+        int top = windowHeight-y_-height_;
+        return x >= x_ && x < x_+width_ && y >= top && y < top+height_;
+    }
+    void SectionView::OnMouseDown(int x, int y)
+    {
+        dragging_ = true; lastX_ = x; lastY_ = y;
+    }
+    void SectionView::OnMouseMove(int x, int y)
+    {
+        if (!dragging_) return;
+        camera_.PanPixels(x-lastX_, y-lastY_);
+        lastX_ = x; lastY_ = y;
+    }
+    void SectionView::OnWheel(int direction, int x, int y, int windowHeight)
+    {
+        camera_.ZoomAt(direction, x-x_, y-(windowHeight-y_-height_));
+    }
 
 	void SectionView::Render(const ViewModels::MainViewModel& viewModel) const
 	{
@@ -73,79 +94,73 @@ namespace IceCream::App::Views
 		const auto background = appearance.Color(ColorRole::Section);
         glClearColor(background.r, background.g, background.b, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glDisable(GL_SCISSOR_TEST);
 		glDisable(GL_DEPTH_TEST);
 
-		float minX = -1.5f;
-		float maxX = 1.5f;
-		float minY = -1.5f;
-		float maxY = 1.5f;
-
+		Graphics::SectionBounds content{std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(),
+            std::numeric_limits<double>::max(), -std::numeric_limits<double>::max()};
+        bool hasPoints = false;
 		for (const auto& contour : viewModel.Section().Contours())
 		{
 			for (const auto& point : contour.Points2D())
 			{
-				minX = std::min(minX, static_cast<float>(point.X));
-				maxX = std::max(maxX, static_cast<float>(point.X));
-				minY = std::min(minY, static_cast<float>(point.Y));
-				maxY = std::max(maxY, static_cast<float>(point.Y));
+                hasPoints = true;
+                content.MinX = std::min(content.MinX, point.X); content.MaxX = std::max(content.MaxX, point.X);
+                content.MinY = std::min(content.MinY, point.Y); content.MaxY = std::max(content.MaxY, point.Y);
 			}
 		}
 
-		const float pad = 0.35f;
-		minX -= pad;
-		maxX += pad;
-		minY -= pad;
-		maxY += pad;
+        if (geometryRevision_ != viewModel.GeometryRevision())
+        {
+            camera_.ResetView();
+            geometryRevision_ = viewModel.GeometryRevision();
+        }
+        camera_.SetContentBounds(hasPoints ? content : Graphics::SectionBounds{-1.5,1.5,-1.5,1.5});
+        auto bounds = camera_.Bounds();
+        const double minX = bounds.MinX, maxX = bounds.MaxX, minY = bounds.MinY, maxY = bounds.MaxY;
+        const double centerX = camera_.CenterX(), centerY = camera_.CenterY();
+        const float halfX = static_cast<float>((maxX-minX)*.5), halfY = static_cast<float>((maxY-minY)*.5);
+        // Subtract the camera origin in double precision before uploading floats.
+        const glm::mat4 mvp = glm::ortho(-halfX, halfX, -halfY, halfY, -1.0f, 1.0f);
 
-		const float aspect = static_cast<float>(width_) / static_cast<float>(height_);
-		float spanX = maxX - minX;
-		float spanY = maxY - minY;
-
-		if (spanX / spanY < aspect)
-		{
-			const float extra = spanY * aspect - spanX;
-			minX -= extra * 0.5f;
-			maxX += extra * 0.5f;
-		}
-		else
-		{
-			const float extra = spanX / aspect - spanY;
-			minY -= extra * 0.5f;
-			maxY += extra * 0.5f;
-		}
-
-		const glm::mat4 mvp = glm::ortho(minX, maxX, minY, maxY, -1.0f, 1.0f);
-
-		const float range = std::max(maxX - minX, maxY - minY);
-		const float magnitude = std::pow(10.0f, std::floor(std::log10(range / 8)));
-		const float normalized = range / 8 / magnitude;
-		const float step = (normalized <= 1 ? 1 : normalized <= 2 ? 2
+		const double range = std::max(maxX - minX, maxY - minY);
+		const double magnitude = std::pow(10.0, std::floor(std::log10(range / 8)));
+		const double normalized = range / 8 / magnitude;
+		const double step = (normalized <= 1 ? 1 : normalized <= 2 ? 2
 		                                      : normalized <= 5   ? 5
 		                                                          : 10) *
 		                   magnitude;
 		std::vector<float> grid;
 
-		for (float x = std::ceil(minX / step) * step; x < maxX; x += step)
-		{
-			grid.insert(grid.end(), {x, minY, 0, x, maxY, 0});
-		}
-
-		for (float y = std::ceil(minY / step) * step; y < maxY; y += step)
-		{
-			grid.insert(grid.end(), {minX, y, 0, maxX, y, 0});
-		}
+        std::vector<double> ticksX, ticksY;
+        double startX = std::ceil(minX/step)*step, startY = std::ceil(minY/step)*step;
+        // Integer iteration stays bounded even at extreme zoom/large coordinates.
+        for (int i = 0; i < 64; ++i)
+        {
+            double x = startX+i*step, y = startY+i*step;
+            if (x < maxX)
+            {
+                ticksX.push_back(x);
+                float local = static_cast<float>(x-centerX);
+                grid.insert(grid.end(), {local,-halfY,0,local,halfY,0});
+            }
+            if (y < maxY)
+            {
+                ticksY.push_back(y);
+                float local = static_cast<float>(y-centerY);
+                grid.insert(grid.end(), {-halfX,local,0,halfX,local,0});
+            }
+        }
 
 		lineRenderer_.Draw(grid, mvp, glm::vec3(appearance.Color(ColorRole::Grid)), GL_LINES);
 		glLineWidth(1.0f);
-		lineRenderer_.Draw(Axis(minX, 0.0f, maxX, 0.0f), mvp, glm::vec3(appearance.Color(ColorRole::AxisX)), GL_LINES);
-		lineRenderer_.Draw(Axis(0.0f, minY, 0.0f, maxY), mvp, glm::vec3(appearance.Color(ColorRole::AxisY)), GL_LINES);
+		lineRenderer_.Draw(Axis(-halfX, static_cast<float>(-centerY), halfX, static_cast<float>(-centerY)), mvp, glm::vec3(appearance.Color(ColorRole::AxisX)), GL_LINES);
+		lineRenderer_.Draw(Axis(static_cast<float>(-centerX), -halfY, static_cast<float>(-centerX), halfY), mvp, glm::vec3(appearance.Color(ColorRole::AxisY)), GL_LINES);
 
 		glLineWidth(2.4f);
 
 		for (const auto& contour : viewModel.Section().Contours())
 		{
-			lineRenderer_.Draw(PackContour2D(contour), mvp, glm::vec3(appearance.Color(ColorRole::Contour)), GL_LINE_STRIP, appearance.Color(ColorRole::Contour).a);
+			lineRenderer_.Draw(PackContour2D(contour, centerX, centerY), mvp, glm::vec3(appearance.Color(ColorRole::Contour)), GL_LINE_STRIP, appearance.Color(ColorRole::Contour).a);
 		}
 
 		glLineWidth(3);
@@ -153,7 +168,7 @@ namespace IceCream::App::Views
 
 		for (const auto& trace : viewModel.JoinInSection())
 		{
-			lineRenderer_.Draw(PackContour2D(trace), mvp, seamColor, trace.Points2D().size() == 1 ? GL_POINTS : GL_LINE_STRIP, appearance.Color(ColorRole::Seam).a);
+			lineRenderer_.Draw(PackContour2D(trace, centerX, centerY), mvp, seamColor, trace.Points2D().size() == 1 ? GL_POINTS : GL_LINE_STRIP, appearance.Color(ColorRole::Seam).a);
 		}
 		// Отмечаем пересечения плоскости с рёбрами поверхности, стенок и основания.
 		if (viewModel.IsHeightField() || viewModel.IsIntegralBody())
@@ -174,7 +189,7 @@ namespace IceCream::App::Views
 
 					auto point = a + (b - a) * (da / (da - db));
 					auto local = viewModel.SectionPlane().ToLocal(point);
-					markers.insert(markers.end(), {static_cast<float>(local.X), static_cast<float>(local.Y), 0});
+					markers.insert(markers.end(), {static_cast<float>(local.X-centerX), static_cast<float>(local.Y-centerY), 0});
 				}
 			}
 
@@ -186,41 +201,54 @@ namespace IceCream::App::Views
 		glLineWidth(1);
 		char number[24];
 
-		for (float x = std::ceil(minX / step) * step; x < maxX; x += step)
+        float labelsY = static_cast<float>(std::clamp(-minY/(maxY-minY)*height_+4, 12.0, std::max(12.0, static_cast<double>(height_-112))));
+        float labelsX = static_cast<float>(std::clamp(-minX/(maxX-minX)*width_+4, 8.0, std::max(8.0, static_cast<double>(width_-75))));
+        double previousLabelEnd = -1;
+		for (double x : ticksX)
 		{
 			if (std::abs(x) < step * .01f)
 			{
 				continue;
 			}
 
-			std::snprintf(number, sizeof(number), "%g", x);
-			text_.Screen((x - minX) / (maxX - minX) * width_ + 3, (0 - minY) / (maxY - minY) * height_ + 4, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
+			std::snprintf(number, sizeof(number), "%.15g", x);
+            double pixel = (x-minX)/(maxX-minX)*width_+3;
+            double end = pixel + std::char_traits<char>::length(number)*appearance.CoordinateSize*.65;
+            if (pixel >= previousLabelEnd+8 && end < width_-22)
+            {
+                text_.Screen(static_cast<float>(pixel), labelsY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
+                previousLabelEnd = end;
+            }
 		}
 
-		for (float y = std::ceil(minY / step) * step; y < maxY; y += step)
+		for (double y : ticksY)
 		{
 			if (std::abs(y) < step * .01f)
 			{
 				continue;
 			}
 
-			std::snprintf(number, sizeof(number), "%g", y);
-			float pixelY = (y - minY) / (maxY - minY) * height_ + 3;
+			std::snprintf(number, sizeof(number), "%.15g", y);
+			float pixelY = static_cast<float>((y-minY)/(maxY-minY)*height_+3);
 
 			if (pixelY < height_ - 82 && pixelY > 8)
 			{
-				text_.Screen((0 - minX) / (maxX - minX) * width_ + 4, pixelY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
+				text_.Screen(labelsX, pixelY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
 			}
 		}
 
-		text_.Screen(width_ - 22, (0 - minY) / (maxY - minY) * height_ + 5, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "u");
-		text_.Screen((0 - minX) / (maxX - minX) * width_ + 5, height_ - 80, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "v");
+		text_.Screen(static_cast<float>(width_-22), labelsY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "u");
+		text_.Screen(labelsX, static_cast<float>(height_-100), width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "v");
         char status[128];
-        std::snprintf(status,sizeof(status),"Площадь: %.5g",viewModel.SectionArea());
+        if (viewModel.HasSectionArea())
+            std::snprintf(status,sizeof(status),"Площадь: %.5g",viewModel.SectionArea());
+        else
+            std::snprintf(status,sizeof(status),"Площадь недоступна: открытый контур");
         text_.Screen(16,height_-32,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),status);
         if (viewModel.Section().IsEmpty()) hints_.Screen(16,height_-62,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"Плоскость не пересекает фигуру");
-        if (appearance.ShowHints) hints_.Screen(16,height_-88,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"u, v — локальные координаты плоскости");
+        if (appearance.ShowHints) hints_.Screen(16,height_-88,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"Тянуть: переместить · колесо: масштаб · C/СКМ: вписать");
 
+		glDisable(GL_SCISSOR_TEST);
 		glEnable(GL_DEPTH_TEST);
 	}
 

@@ -18,6 +18,15 @@
     <ClCompile Include="pch.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="..\IceCream.App\ViewModels\MainViewModel.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="Services\SurfaceWorkflowTests.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="Services\SectionCameraTests.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
     <ClCompile Include="Geometry\Point2DTests.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>

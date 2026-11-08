@@ -29,7 +29,9 @@ HWND ParametersPanel::Make(const wchar_t *cls, const wchar_t *text, int id, DWOR
     SendMessageW(w, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
     if (wcscmp(cls, L"EDIT") == 0)
     {
-        SendMessageW(w, EM_SETLIMITTEXT, id >= 1000 ? 512 : 64, 0);
+        int field = id >= 1000 ? (id - 1000) % 32 : -1;
+        bool bound = field >= 4 && field <= 9;
+        SendMessageW(w, EM_SETLIMITTEXT, id == 903 ? 4096 : bound ? 2048 : id >= 1000 || id == 904 ? 512 : 64, 0);
         SetWindowSubclass(w, EditProcedure, 1, reinterpret_cast<DWORD_PTR>(this));
     }
     controls_.push_back(w);
@@ -39,10 +41,11 @@ HWND ParametersPanel::Control(int id) const
 {
     return GetDlgItem(content_, id);
 }
-void ParametersPanel::Initialize(ViewModels::MainViewModel &model, std::function<void()> changed)
+void ParametersPanel::Initialize(ViewModels::MainViewModel &model, std::function<void()> changed, std::function<void()> resetSectionView)
 {
     model_ = &model;
     changed_ = std::move(changed);
+    resetSectionView_ = std::move(resetSectionView);
     parent_ = WindowFromDC(wglGetCurrentDC());
     SetWindowLongPtrW(parent_, GWL_STYLE, GetWindowLongPtrW(parent_, GWL_STYLE) | WS_CLIPCHILDREN);
     INITCOMMONCONTROLSEX common{sizeof(common), ICC_BAR_CLASSES};
@@ -85,6 +88,7 @@ void ParametersPanel::Initialize(ViewModels::MainViewModel &model, std::function
     for (int i = 0; i < 3; ++i)
         Make(L"BUTTON", i == 0 ? L"XY" : i == 1 ? L"XZ" : L"YZ", 241 + i, WS_TABSTOP);
     Make(L"BUTTON", L"Прозрачная сторона: +", 244, WS_TABSTOP);
+    Make(L"BUTTON", L"Вписать сечение в окно", 245, WS_TABSTOP);
     Make(L"COMBOBOX", L"", 300, WS_TABSTOP | CBS_DROPDOWNLIST);
     for (auto s : {L"Направленный", L"Точечный", L"Прожектор"})
         SendMessageW(Control(300), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(s));
@@ -108,6 +112,22 @@ void ParametersPanel::Initialize(ViewModels::MainViewModel &model, std::function
         Make(L"STATIC", L"", 20000 + i, SS_LEFT);
     Make(L"BUTTON", L"Построить", 900, WS_TABSTOP);
     Make(L"BUTTON", L"+ Добавить часть", 901, WS_TABSTOP);
+    Make(L"COMBOBOX", L"", 902, WS_TABSTOP | CBS_DROPDOWNLIST);
+    for (auto name : {L"Функции и интегралы", L"Неявная поверхность g(x, y, z) = 0"})
+        SendMessageW(Control(902), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(name));
+    SendMessageW(Control(902), CB_SETCURSEL, 0, 0);
+    Make(L"EDIT", L"", 903, WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL);
+    Make(L"EDIT", L"x^2+y^2+z^2=9", 904, WS_TABSTOP | ES_AUTOHSCROLL);
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        Make(L"EDIT", L"-4", 905 + 3 * axis, WS_TABSTOP | ES_AUTOHSCROLL);
+        Make(L"EDIT", L"4", 906 + 3 * axis, WS_TABSTOP | ES_AUTOHSCROLL);
+        Make(L"EDIT", L"40", 907 + 3 * axis, WS_TABSTOP | ES_AUTOHSCROLL);
+    }
+    Make(L"BUTTON", L"Цвет поверхности", 914, WS_TABSTOP | BS_OWNERDRAW);
+    Make(L"BUTTON", L"+ Ограничения (для всей поверхности)", 916, WS_TABSTOP);
+    Make(L"BUTTON", L"Показывать поверхности ограничений", 917, WS_TABSTOP | BS_AUTOCHECKBOX);
+    SendMessageW(Control(917), BM_SETCHECK, BST_CHECKED, 0);
     for (int part = 0; part < 8; ++part)
     {
         int id = 1000 + part * 32;
@@ -189,6 +209,13 @@ void ParametersPanel::Render(const ViewModels::MainViewModel &)
     if (revision_ != model_->GeometryRevision())
     {
         Sync();
+        implicitMode_ = model_->IsImplicitSurface();
+        SendMessageW(Control(902), CB_SETCURSEL, implicitMode_ ? 1 : 0, 0);
+        const auto& constraints = model_->Constraints();
+        int size = MultiByteToWideChar(CP_UTF8, 0, constraints.c_str(), -1, nullptr, 0);
+        std::wstring wide(size, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, constraints.c_str(), -1, wide.data(), size);
+        SetText(903, wide.c_str());
         if (model_->IsIntegralBody())
         {
             drafts_ = model_->IntegralParts();
@@ -229,6 +256,8 @@ void ParametersPanel::SetNumber(int id, double n)
 void ParametersPanel::Sync()
 {
     syncing_ = true;
+    RefreshSectionRanges();
+    SendMessageW(Control(917), BM_SETCHECK, model_->Appearance().ShowConstraintSurfaces ? BST_CHECKED : BST_UNCHECKED, 0);
     const auto &o = model_->SectionPosition();
     const auto &r = model_->SectionRotation();
     const double v[] = {o.X, o.Y, o.Z, r.X, r.Y, r.Z};
@@ -246,6 +275,31 @@ void ParametersPanel::Sync()
         SetNumber(310 + i, lv[i]);
     revision_ = model_->GeometryRevision();
     syncing_ = false;
+}
+void ParametersPanel::RefreshSectionRanges()
+{
+    std::array<double,3> extent{{0,0,0}};
+    auto rotation = model_->SurfaceRotation();
+    for (const auto& p : model_->Body().Mesh().Vertices())
+    {
+        auto q = rotation * glm::dvec3(p.X,p.Y,p.Z);
+        for (int axis = 0; axis < 3; ++axis) extent[axis] = std::max(extent[axis],std::abs(q[axis]));
+    }
+    const auto& position = model_->SectionPosition();
+    const double values[] = {position.X,position.Y,position.Z};
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        double range = std::clamp(std::ceil(std::max(extent[axis],std::abs(values[axis]))*1.2/10)*10,
+            20.0, ViewModels::MainViewModel::SectionPositionLimit);
+        int ticks = static_cast<int>(std::round(range*10));
+        if (ticks != sectionSliderRanges_[axis])
+        {
+            SendMessageW(Control(220+axis), TBM_SETRANGEMIN, FALSE, -ticks);
+            SendMessageW(Control(220+axis), TBM_SETRANGEMAX, TRUE, ticks);
+            sectionSliderRanges_[axis] = ticks;
+        }
+        SendMessageW(Control(220+axis), TBM_SETPOS, TRUE, static_cast<LPARAM>(std::lround(values[axis]*10)));
+    }
 }
 void ParametersPanel::SetText(int id, const wchar_t *value)
 {
@@ -463,7 +517,8 @@ LRESULT CALLBACK ParametersPanel::Procedure(HWND window, UINT msg, WPARAM w, LPA
         if (msg == WM_DRAWITEM)
         {
             auto *d = reinterpret_cast<DRAWITEMSTRUCT *>(l);
-            int role = d->CtlID >= 500 ? int(d->CtlID) - 500 : d->CtlID == 122 ? 7 : d->CtlID == 123 ? 8 : 6;
+            int role = d->CtlID == 914 ? static_cast<int>(ColorRole::Body) :
+                d->CtlID >= 500 ? int(d->CtlID) - 500 : d->CtlID == 122 ? 7 : d->CtlID == 123 ? 8 : 6;
             glm::vec4 c;
             if (d->CtlID >= 1000)
             {

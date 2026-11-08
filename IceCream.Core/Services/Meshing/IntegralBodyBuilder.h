@@ -4,6 +4,8 @@
 #include <array>
 #include <string>
 #include <vector>
+#include <utility>
+#include <cctype>
 
 namespace IceCream::Core::Services
 {
@@ -27,6 +29,21 @@ struct IntegralPart
     int DependentAxis = 2;
     std::string Base = "0";
     bool AboveFunction = false;
+    // Editing a graph starts a new definition; do not inherit a preset's hidden cap.
+    void SetFunction(std::string formula)
+    {
+        auto compact = [](const std::string& input) {
+            std::string result;
+            for (unsigned char c : input) if (!std::isspace(c)) result += static_cast<char>(c);
+            return result;
+        };
+        if (Definition == PartDefinition::Function && compact(formula) != compact(Function))
+        {
+            Base = "0";
+            AboveFunction = false;
+        }
+        Function = std::move(formula);
+    }
     std::array<int, 3> FunctionOrder() const
     {
         int axis = Coordinates == CoordinateSystem::Cartesian ? DependentAxis : 2;

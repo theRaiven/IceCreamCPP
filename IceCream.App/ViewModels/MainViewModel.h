@@ -17,6 +17,15 @@
 
 namespace IceCream::App::ViewModels
 {
+	// Separate from the measured mesh: finite, translucent guides for g(x,y,z)=0.
+	struct ConstraintSurface
+	{
+		std::string Condition;
+		glm::vec3 Color;
+		std::vector<float> Triangles;
+		glm::vec3 Center{0};
+		bool Undefined = false;
+	};
 	/// <summary>
 	/// Хранит параметры, тело мороженого, сечение и предоставляет их представлению.
 	/// </summary>
@@ -39,6 +48,10 @@ namespace IceCream::App::ViewModels
 		std::vector<std::vector<Core::Geometry::Point3D>> surfaceEdges_;
 		double volume_ = 0.0;
 		double sectionArea_ = 0.0;
+		bool volumeAvailable_ = true, sectionAreaAvailable_ = true;
+		bool implicitSurface_ = false, meshVolume_ = false;
+		std::string constraints_;
+		std::vector<ConstraintSurface> constraintSurfaces_;
 		Core::Geometry::Point3D sectionPosition_{0.0, 0.0, 2.1};
 		Core::Geometry::Vector3D sectionRotation_{};
 		
@@ -55,11 +68,18 @@ namespace IceCream::App::ViewModels
         Core::Geometry::Plane3D CreateSectionPlane(bool surface) const;
 
 	public:
-		void ApplyIntegralParts(const std::vector<Core::Services::IntegralPart>& parts);
+        static constexpr double SectionPositionLimit = 1000;
+		void ApplyIntegralParts(const std::vector<Core::Services::IntegralPart>& parts, const std::string& constraints = "");
         const auto& IntegralParts() const { return integralParts_; }
         const auto& TriangleColors() const { return triangleColors_; }
         bool IsIntegralBody() const { return !integralParts_.empty(); }
         double IntegralError() const { return integralError_; }
+		bool HasVolume() const { return volumeAvailable_; }
+		bool HasSectionArea() const { return sectionAreaAvailable_; }
+		bool UsesMeshVolume() const { return meshVolume_; }
+		bool IsImplicitSurface() const { return implicitSurface_; }
+		const std::string& Constraints() const { return constraints_; }
+		const auto& ConstraintSurfaces() const { return constraintSurfaces_; }
         const AppearanceSettings& Appearance() const { return appearance_; }
 		void SetAppearance(const AppearanceSettings& settings);
 		int DependentAxis() const { return dependentAxis_; }
@@ -132,9 +152,10 @@ namespace IceCream::App::ViewModels
 			return surfaceEdges_;
 		}
 
-		void ApplyHeightField(const Core::Services::HeightFieldBounds& bounds, const std::string& formula);
-		void ApplyImplicitSurface(const std::string& formula, Core::Geometry::Point3D min, Core::Geometry::Point3D max, int cellsX = 40, int cellsY = 40, int cellsZ = 40);
-		void ApplyShape(const Core::Models::IceCreamParameters& parameters, const std::string& formula);
+		void ApplyHeightField(const Core::Services::HeightFieldBounds& bounds, const std::string& formula, const std::string& constraints = "");
+		void ApplyImplicitSurface(const std::string& formula, Core::Geometry::Point3D min, Core::Geometry::Point3D max,
+		    int cellsX = 40, int cellsY = 40, int cellsZ = 40, const std::string& constraints = "");
+		void ApplyShape(const Core::Models::IceCreamParameters& parameters, const std::string& formula, const std::string& constraints = "");
 
 		bool HasPartJoin() const
 		{

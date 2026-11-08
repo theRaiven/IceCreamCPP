@@ -416,6 +416,13 @@ namespace IceCream::Core::Expressions
         return Parser(formula, constants).Parse();
     }
 
+    CompiledExpression ExpressionParser::CompileBound(const string& formula, const Constants& constants)
+    {
+        if (formula.empty() || formula.size() > 2048)
+            throw invalid_argument("Предел должен содержать от 1 до 2048 символов.");
+        return Parser(formula, constants).Parse();
+    }
+
     CompiledExpression ExpressionParser::CompileEquation(const string& formula, const Constants& constants)
     {
         size_t pos = formula.find('=');

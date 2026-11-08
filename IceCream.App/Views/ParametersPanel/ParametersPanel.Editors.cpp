@@ -39,8 +39,49 @@ void ParametersPanel::Layout()
     {
         if (activePage_ == 0)
         {
+            place(902, 20, y, right - 20, 160);
+            y += 44;
             place(900, 20, y, right - 20, 34);
-            y += 46;
+            y += 42;
+            place(801, 20, y, right - 20, 48);
+            y += 54;
+            SetText(916, constraintsOpen_ ? L"− Ограничения (для всей поверхности)" : L"+ Ограничения (для всей поверхности)");
+            place(916, 20, y, right - 20, 32);
+            y += 42;
+            if (constraintsOpen_)
+            {
+                place(903, 20, y, right - 20, 82);
+                y += 90;
+                text(L"Условия по X, Y, Z: по одному на строку или через запятую. Пусто — без обрезки.", 20, y, right - 20, 48);
+                y += 58;
+                place(917, 20, y, right - 20, 30);
+                y += 40;
+            }
+            if (implicitMode_)
+            {
+                text(L"Уравнение поверхности", 20, y, right - 20);
+                y += 28;
+                place(904, 20, y, right - 68, 30);
+                place(914, right - 38, y, 38, 30);
+                y += 42;
+                text(L"Ось", 20, y, 36);
+                text(L"От", 60, y, 100);
+                text(L"До", 172, y, 100);
+                text(L"Ячеек", 284, y, right - 284);
+                y += 30;
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    text(axis == 0 ? L"X" : axis == 1 ? L"Y" : L"Z", 20, y, 36);
+                    place(905 + 3 * axis, 60, y, 100);
+                    place(906 + 3 * axis, 172, y, 100);
+                    place(907 + 3 * axis, 284, y, right - 284);
+                    y += 38;
+                }
+                text(L"Например: x^2+y^2+z^2=9. Можно ввести g(x,y,z) без «=0». Ячеек: 2–128 по оси, всего до 1 000 000.", 20, y, right - 20, 66);
+                y += 76;
+            }
+            else
+            {
             for (size_t part = 0; part < drafts_.size(); ++part)
             {
                 const auto &p = drafts_[part];
@@ -87,6 +128,7 @@ void ParametersPanel::Layout()
             }
             place(901, 20, y, right - 20, 32);
             y += 46;
+            }
         }
         if (activePage_ == 1 && header(1, L"Сечение"))
         {
@@ -106,6 +148,8 @@ void ParametersPanel::Layout()
             place(240, 20, y, right - 20, 32);
             y += 42;
             place(244, 20, y, right - 20, 32);
+            y += 42;
+            place(245, 20, y, right - 20, 32);
             y += 50;
         }
         if (activePage_ == 2 && header(2, L"Свет"))
@@ -164,8 +208,11 @@ void ParametersPanel::Layout()
         place(800, 20, y, right - 20, model_->Appearance().HintSize * 9);
         y += model_->Appearance().HintSize * 9 + 16;
     }
-    place(801, 20, y, right - 20, 70);
-    y += 82;
+    if (activePage_ != 0)
+    {
+        place(801, 20, y, right - 20, 70);
+        y += 82;
+    }
     contentHeight_ = y;
     int maxScroll = std::max(0, y - (height_ - 52));
     if (scroll_ > maxScroll)
@@ -226,11 +273,45 @@ void ParametersPanel::Layout()
 }
 void ParametersPanel::ApplyShape()
 {
+    struct WaitCursor
+    {
+        HCURSOR Previous = SetCursor(LoadCursor(nullptr, IDC_WAIT));
+        ~WaitCursor() { SetCursor(Previous); }
+    } cursor;
     try
     {
         StoreDrafts();
-        model_->ApplyIntegralParts(drafts_);
-        LoadDrafts();
+        const auto read = [&](int id) {
+            int length = GetWindowTextLengthW(Control(id));
+            std::wstring wide(length + 1, L'\0');
+            GetWindowTextW(Control(id), wide.data(), length + 1);
+            int size = WideCharToMultiByte(CP_UTF8, 0, wide.data(), length, nullptr, 0, nullptr, nullptr);
+            std::string text(size, ' ');
+            WideCharToMultiByte(CP_UTF8, 0, wide.data(), length, text.data(), size, nullptr, nullptr);
+            return text;
+        };
+        if (implicitMode_)
+        {
+            double low[3], high[3];
+            int cells[3];
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                low[axis] = Number(905 + 3 * axis);
+                high[axis] = Number(906 + 3 * axis);
+                if (low[axis] >= high[axis]) throw std::invalid_argument("Граница «От» должна быть меньше «До» по каждой оси.");
+                double count = Number(907 + 3 * axis);
+                if (count < 2 || count > 128 || count != std::floor(count))
+                    throw std::invalid_argument("Ячейки: целые числа от 2 до 128 по каждой оси.");
+                cells[axis] = static_cast<int>(count);
+            }
+            model_->ApplyImplicitSurface(read(904), {low[0], low[1], low[2]}, {high[0], high[1], high[2]},
+                cells[0], cells[1], cells[2], read(903));
+        }
+        else
+        {
+            model_->ApplyIntegralParts(drafts_, read(903));
+            LoadDrafts();
+        }
         revision_ = model_->GeometryRevision();
         SetError(L"");
         Notify();
@@ -242,6 +323,7 @@ void ParametersPanel::ApplyShape()
         std::wstring wide(size, L' ');
         MultiByteToWideChar(CP_UTF8, 0, message.c_str(), -1, wide.data(), size);
         SetError(wide.c_str());
+        Scroll(0);
     }
 }
 void ParametersPanel::ApplySection()
@@ -252,21 +334,57 @@ void ParametersPanel::ApplySection()
         for (int i = 0; i < 6; ++i)
         {
             values[i] = Number(200 + i);
-            double limit = i < 3 ? 20 : 180;
+            double limit = i < 3 ? ViewModels::MainViewModel::SectionPositionLimit : 180;
             if (std::abs(values[i]) > limit)
                 throw std::out_of_range("Section range");
         }
         model_->SetSectionPose({values[0], values[1], values[2]}, {values[3], values[4], values[5]});
+        RefreshSectionRanges();
         SetError(L"");
         Notify();
     }
     catch (const std::exception &)
     {
-        SetError(L"Положение: −20…20; поворот: −180…180 градусов.");
+        SetError(L"Положение: −1000…1000; поворот: −180…180 градусов.");
     }
 }
 void ParametersPanel::Command(int id, int notification)
 {
+    if (id == 245)
+    {
+        if (resetSectionView_) resetSectionView_();
+        Notify();
+        return;
+    }
+    if (id == 917)
+    {
+        auto appearance = model_->Appearance();
+        appearance.ShowConstraintSurfaces = SendMessageW(Control(917), BM_GETCHECK, 0, 0) == BST_CHECKED;
+        model_->SetAppearance(appearance);
+        Notify();
+        return;
+    }
+    if (id == 902 && notification == CBN_SELCHANGE)
+    {
+        StoreDrafts();
+        implicitMode_ = SendMessageW(Control(902), CB_GETCURSEL, 0, 0) == 1;
+        scroll_ = 0;
+        SetError(L"");
+        Layout();
+        return;
+    }
+    if (id == 914)
+    {
+        EditColor(static_cast<int>(ViewModels::ColorRole::Body));
+        InvalidateRect(Control(914), nullptr, FALSE);
+        return;
+    }
+    if (id == 916)
+    {
+        constraintsOpen_ = !constraintsOpen_;
+        Layout();
+        return;
+    }
     if (id >= 10 && id <= 13)
     {
         StoreDrafts();
@@ -366,7 +484,9 @@ LRESULT CALLBACK ParametersPanel::EditProcedure(HWND window, UINT msg, WPARAM w,
         if (w == VK_RETURN)
         {
             int id = GetDlgCtrlID(window);
-            if (id >= 1000 || id < 200)
+            if (id == 903 && GetKeyState(VK_CONTROL) >= 0)
+                return DefSubclassProc(window, msg, w, l);
+            if (id >= 900 || id < 200)
                 self->ApplyShape();
             else if (id < 300)
                 self->ApplySection();
@@ -388,6 +508,8 @@ LRESULT CALLBACK ParametersPanel::EditProcedure(HWND window, UINT msg, WPARAM w,
             return 0;
         }
     }
+    if (msg == WM_CHAR && w == VK_RETURN && GetDlgCtrlID(window) == 903 && GetKeyState(VK_CONTROL) >= 0)
+        return DefSubclassProc(window, msg, w, l);
     if (msg == WM_CHAR && (w == VK_RETURN || w == VK_ESCAPE || w == VK_TAB))
         return 0;
     return DefSubclassProc(window, msg, w, l);

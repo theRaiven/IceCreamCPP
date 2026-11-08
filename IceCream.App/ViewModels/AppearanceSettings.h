@@ -29,6 +29,7 @@ struct AppearanceSettings
 {
     bool LightTheme = false;
     bool ShowHints = false;
+    bool ShowConstraintSurfaces = true;
     int HintSize = 14;
     int CoordinateSize = 20;
     std::array<glm::vec4, static_cast<size_t>(ColorRole::Count)> Colors{};

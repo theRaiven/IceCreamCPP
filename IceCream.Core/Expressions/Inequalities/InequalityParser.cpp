@@ -192,7 +192,10 @@ namespace IceCream::Core::Inequalities
                         return reversed ? right(x, y, z) - left(x, y, z) : left(x, y, z) - right(x, y, z);
                     };
 
-                result.emplace_back(difference, relation);
+                const char* symbol = operation == ComparisonOperator::Less ? " < " :
+                    operation == ComparisonOperator::LessOrEqual ? " <= " :
+                    operation == ComparisonOperator::Greater ? " > " : " >= ";
+                result.emplace_back(difference, relation, parts.expressions[i] + symbol + parts.expressions[i + 1]);
             }
         }
 

@@ -40,11 +40,12 @@ void ParametersPanel::StoreDrafts()
         auto &p = drafts_[i];
         int id = 1000 + static_cast<int>(i) * 32;
         p.Name = Read(Control(id));
-        p.Function = Read(Control(id + 1));
+        const auto formula = Read(Control(id + 1));
         p.Coordinates = static_cast<CoordinateSystem>(SendMessageW(Control(id + 2), CB_GETCURSEL, 0, 0));
         int mode = static_cast<int>(SendMessageW(Control(id + 14), CB_GETCURSEL, 0, 0));
         bool cart = p.Coordinates == CoordinateSystem::Cartesian;
         p.Definition = mode == (cart ? 3 : 1) ? PartDefinition::Integral : PartDefinition::Function;
+        p.SetFunction(formula);
         p.DependentAxis = !cart || mode == 0 ? 2 : mode == 1 ? 0 : 1;
         if (p.Definition == PartDefinition::Function)
             p.Order = p.FunctionOrder();
@@ -132,7 +133,10 @@ void ParametersPanel::UpdateIntegralPreview(size_t part)
     auto names = p.Coordinates == CoordinateSystem::Cartesian ? cart : radial;
     if (p.Definition == PartDefinition::Function)
     {
-        Write(Control(id + 12), "Пределы задают область двух независимых координат.");
+        std::string preview = "Пределы задают область двух независимых координат.";
+        if (p.Base == "0")
+            preview += std::string("\nОбъём — между графиком и ") + names[p.DependentAxis] + "=0.";
+        Write(Control(id + 12), preview);
         return;
     }
     std::string preview;

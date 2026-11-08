@@ -316,7 +316,8 @@ void ParametersPanel::EditColor(int role)
     }
     EnableWindow(parent_, TRUE);
     SetActiveWindow(parent_);
-    SetFocus(Control(role >= 100 ? 1000 + (role - 100) * 32 + 10 : 500 + role));
+    SetFocus(Control(role >= 100 ? 1000 + (role - 100) * 32 + 10 :
+        implicitMode_ && role == static_cast<int>(ViewModels::ColorRole::Body) ? 914 : 500 + role));
     if (p.accepted)
     {
         if (role >= 100)

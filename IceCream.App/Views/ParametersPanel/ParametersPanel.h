@@ -20,12 +20,16 @@ class ParametersPanel
 {
     ViewModels::MainViewModel *model_ = nullptr;
     std::function<void()> changed_;
+    std::function<void()> resetSectionView_;
+    std::array<int, 3> sectionSliderRanges_{{200,200,200}};
+    void RefreshSectionRanges();
     HWND parent_ = nullptr, panel_ = nullptr, content_ = nullptr;
     HFONT font_ = nullptr, hintFont_ = nullptr;
     HBRUSH background_ = nullptr, fieldBrush_ = nullptr;
     std::vector<HWND> controls_;
     std::array<bool, 4> expanded_{{true, false, false, true}};
     bool appearanceTab_ = false, syncing_ = false, panelOpen_ = false;
+    bool implicitMode_ = false, constraintsOpen_ = false;
     int activePage_ = 0;
     std::vector<Core::Services::IntegralPart> drafts_;
     void LoadDrafts();
@@ -68,7 +72,7 @@ class ParametersPanel
     {
         return panelOpen_ ? 440 : 0;
     }
-    void Initialize(ViewModels::MainViewModel &, std::function<void()>);
+    void Initialize(ViewModels::MainViewModel &, std::function<void()>, std::function<void()> resetSectionView);
     void Destroy();
     void SetViewport(int, int, int, int);
     void Render(const ViewModels::MainViewModel &);

@@ -43,7 +43,7 @@ int MainWindow::Run(int argc, char **argv)
         UpdateLayout();
         ReloadMeshIfChanged();
         glutPostRedisplay();
-    });
+    }, [this] { sectionView_.ResetView(); });
     sceneView_.Initialize();
     sectionView_.Initialize();
     ReloadMesh();
@@ -124,6 +124,24 @@ void MainWindow::Reshape(int width, int height)
 
 void MainWindow::Mouse(int button, int state, int x, int y)
 {
+    if (state == GLUT_UP)
+    {
+        instance_->sectionView_.OnMouseUp();
+        if (button == GLUT_LEFT_BUTTON) instance_->sceneView_.OnMouseUp();
+        if (button == GLUT_RIGHT_BUTTON) instance_->sceneView_.OnPanUp();
+    }
+    if (instance_->sectionView_.Contains(x,y,instance_->windowHeight_))
+    {
+        if (state == GLUT_DOWN && (button == GLUT_LEFT_BUTTON || button == GLUT_RIGHT_BUTTON))
+        {
+            instance_->sceneView_.OnMouseUp();
+            instance_->sceneView_.OnPanUp();
+            instance_->sectionView_.OnMouseDown(x,y);
+        }
+        if (state == GLUT_DOWN && button == GLUT_MIDDLE_BUTTON) instance_->sectionView_.ResetView();
+        glutPostRedisplay();
+        return;
+    }
     if (button == GLUT_RIGHT_BUTTON)
     {
         if (state == GLUT_DOWN && instance_->sceneView_.Contains(x, y, instance_->windowHeight_))
@@ -172,6 +190,7 @@ void MainWindow::MouseMotion(int x, int y)
     if (!instance_->parametersPanel_.Motion(x, instance_->viewModel_))
     {
         instance_->sceneView_.OnMouseMove(x, y);
+        instance_->sectionView_.OnMouseMove(x, y);
     }
 
     glutPostRedisplay();
@@ -179,6 +198,12 @@ void MainWindow::MouseMotion(int x, int y)
 
 void MainWindow::MouseWheel(int, int direction, int x, int y)
 {
+    if (instance_->sectionView_.Contains(x,y,instance_->windowHeight_))
+    {
+        instance_->sectionView_.OnWheel(direction,x,y,instance_->windowHeight_);
+        glutPostRedisplay();
+        return;
+    }
     if (instance_->sceneView_.Contains(x, y, instance_->windowHeight_))
     {
         instance_->sceneView_.OnWheel(direction);
@@ -186,7 +211,7 @@ void MainWindow::MouseWheel(int, int direction, int x, int y)
     }
 }
 
-void MainWindow::Keyboard(unsigned char key, int, int)
+void MainWindow::Keyboard(unsigned char key, int x, int y)
 {
     auto &model = instance_->viewModel_;
 
@@ -200,7 +225,7 @@ void MainWindow::Keyboard(unsigned char key, int, int)
 
     const auto &parameters = model.Parameters();
 
-    if ((model.IsHeightField() || model.IsIntegralBody()) && key != ' ' && key != 'c' && key != 'C')
+    if ((model.IsHeightField() || model.IsIntegralBody() || model.IsImplicitSurface()) && key != ' ' && key != 'c' && key != 'C')
     {
         return;
     }
@@ -253,10 +278,12 @@ void MainWindow::Keyboard(unsigned char key, int, int)
             break;
         case 'c':
         case 'C':
-            instance_->sceneView_.ResetCamera();
+            if (instance_->sectionView_.Contains(x,y,instance_->windowHeight_)) instance_->sectionView_.ResetView();
+            else instance_->sceneView_.ResetCamera();
             break;
         case ' ':
             model.ResetDefaults();
+            instance_->sectionView_.ResetView();
             instance_->sceneView_.ResetCamera();
             instance_->ReloadMesh();
             break;
@@ -287,10 +314,10 @@ void MainWindow::Special(int key, int, int)
     switch (key)
     {
     case GLUT_KEY_LEFT:
-        model.SetSectionPosition(2, std::max(-20.0, model.SectionPosition().Z - OffsetStep));
+        model.SetSectionPosition(2, std::max(-ViewModels::MainViewModel::SectionPositionLimit, model.SectionPosition().Z - OffsetStep));
         break;
     case GLUT_KEY_RIGHT:
-        model.SetSectionPosition(2, std::min(20.0, model.SectionPosition().Z + OffsetStep));
+        model.SetSectionPosition(2, std::min(ViewModels::MainViewModel::SectionPositionLimit, model.SectionPosition().Z + OffsetStep));
         break;
     case GLUT_KEY_UP:
         model.SetSectionRotation(1, model.SectionRotation().Y + AngleStep);

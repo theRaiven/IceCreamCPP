@@ -19,6 +19,8 @@ namespace IceCream::Core::Services
     class MeshClipper
     {
     public:
-        Geometry::TriangleMesh Clip(const Geometry::TriangleMesh& mesh, const Inequalities::InequalityRegion& region, const MeshClipperOptions& options = {}) const;
+        // Optional provenance maps each output triangle to its input triangle (e.g. for colors).
+        Geometry::TriangleMesh Clip(const Geometry::TriangleMesh& mesh, const Inequalities::InequalityRegion& region,
+            const MeshClipperOptions& options = {}, std::vector<size_t>* sourceTriangles = nullptr) const;
     };
 }

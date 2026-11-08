@@ -2,6 +2,7 @@
 #include "../../Expressions/Parsing/ExpressionParser.h"
 
 #include <cmath>
+#include <cctype>
 #include <stdexcept>
 
 using namespace std;
@@ -9,7 +10,7 @@ using namespace IceCream::Core::Models;
 
 namespace IceCream::Core::Profiles
 {
-    function<double(double, double, double)> CompileSpatialExpression(const string& formula, const IceCreamParameters& parameters)
+    function<double(double, double, double)> CompileSpatialExpression(const string& formula, const IceCreamParameters& parameters, bool bound)
     {
         Expressions::ExpressionParser::Constants constants = {
             {"H",      parameters.BaseHeight},
@@ -21,7 +22,23 @@ namespace IceCream::Core::Profiles
             {"height", parameters.BaseHeight + parameters.CapHeight}
         };
 
-        return Expressions::ExpressionParser::Compile(formula, constants);
+        // The generic parser uses Cartesian coordinates; radial profiles and integrals
+        // pass their first two coordinates as r/phi. Rename whole identifiers only.
+        string expression;
+        for (size_t i = 0; i < formula.size();)
+        {
+            if (!std::isalpha(static_cast<unsigned char>(formula[i])))
+            {
+                expression += formula[i++];
+                continue;
+            }
+            size_t start = i++;
+            while (i < formula.size() && std::isalpha(static_cast<unsigned char>(formula[i]))) ++i;
+            auto name = formula.substr(start, i - start);
+            expression += name == "r" ? "x" : name == "phi" ? "y" : name;
+        }
+        return bound ? Expressions::ExpressionParser::CompileBound(expression, constants)
+                     : Expressions::ExpressionParser::Compile(expression, constants);
     }
 
     function<double(double, double)> CompileExpression(const string& formula, const IceCreamParameters& parameters)

@@ -18,7 +18,12 @@ namespace IceCream::Core::Services
 {
     namespace
     {
-        using Face = array<int, 3>;
+        struct Face
+        {
+            array<int, 3> Indices;
+            size_t Source;
+            int operator[](size_t i) const { return Indices[i]; }
+        };
         using Edge = pair<int, int>;
 
         Edge MakeEdge(int a, int b)
@@ -53,7 +58,7 @@ namespace IceCream::Core::Services
             return value;
         }
 
-        void AddFace(vector<Face>& faces, const vector<Point3D>& vertices, int a, int b, int c, size_t limit)
+        void AddFace(vector<Face>& faces, const vector<Point3D>& vertices, int a, int b, int c, size_t limit, size_t source)
         {
             if (a == b || b == c || c == a) return;
             if (Degenerate(vertices[a], vertices[b], vertices[c])) return;
@@ -114,7 +119,7 @@ namespace IceCream::Core::Services
                     }
                     if (polygon.size() == 3)
                     {
-                        AddFace(next, vertices, face[0], face[1], face[2], options.maxTriangles);
+                        AddFace(next, vertices, face[0], face[1], face[2], options.maxTriangles, face.Source);
                         continue;
                     }
                     if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Слишком много вершин");
@@ -123,7 +128,7 @@ namespace IceCream::Core::Services
                     const Point3D& c = vertices[face[2]];
                     int center = static_cast<int>(vertices.size());
                     vertices.push_back({ (a.X + b.X + c.X) / 3, (a.Y + b.Y + c.Y) / 3, (a.Z + b.Z + c.Z) / 3 });
-                    for (size_t j = 0; j < polygon.size(); ++j) AddFace(next, vertices, polygon[j], polygon[(j + 1) % polygon.size()], center, options.maxTriangles);
+                    for (size_t j = 0; j < polygon.size(); ++j) AddFace(next, vertices, polygon[j], polygon[(j + 1) % polygon.size()], center, options.maxTriangles, face.Source);
                 }
                 faces.swap(next);
             }
@@ -186,7 +191,7 @@ namespace IceCream::Core::Services
             outputIndices.reserve(faces.size() * 3);
             for (const Face& face : faces)
             {
-                for (int id : face)
+                for (int id : face.Indices)
                 {
                     if (oldToNew[id] < 0)
                     {
@@ -201,7 +206,7 @@ namespace IceCream::Core::Services
         }
     }
 
-    TriangleMesh MeshClipper::Clip(const TriangleMesh& mesh, const InequalityRegion& region, const MeshClipperOptions& options) const
+    TriangleMesh MeshClipper::Clip(const TriangleMesh& mesh, const InequalityRegion& region, const MeshClipperOptions& options, vector<size_t>* sourceTriangles) const
     {
         if (options.maxSubdivisionDepth < 0 || options.maxSubdivisionDepth > 12 || !isfinite(options.maxEdgeLength) || options.maxEdgeLength < 0 || options.maxTriangles == 0)
         {
@@ -229,7 +234,7 @@ namespace IceCream::Core::Services
             else indicesMap[i] = found->second;
         }
         const auto& indices = mesh.Indices();
-        for (size_t i = 0; i < indices.size(); i += 3) AddFace(faces, vertices, indicesMap[indices[i]], indicesMap[indices[i + 1]], indicesMap[indices[i + 2]], options.maxTriangles);
+        for (size_t i = 0; i < indices.size(); i += 3) AddFace(faces, vertices, indicesMap[indices[i]], indicesMap[indices[i + 1]], indicesMap[indices[i + 2]], options.maxTriangles, i / 3);
 
         Refine(vertices, faces, region, options);
         for (const Inequality& inequality : region.GetInequalities())
@@ -242,11 +247,18 @@ namespace IceCream::Core::Services
             for (const Face& face : faces)
             {
                 vector<int> polygon = ClipPolygon(face, inequality, vertices, values, intersections);
-                for (size_t j = 1; j + 1 < polygon.size(); ++j) AddFace(next, vertices, polygon[0], polygon[j], polygon[j + 1], options.maxTriangles);
+                for (size_t j = 1; j + 1 < polygon.size(); ++j) AddFace(next, vertices, polygon[0], polygon[j], polygon[j + 1], options.maxTriangles, face.Source);
             }
             faces.swap(next);
             if (faces.empty()) break;
         }
-        return Pack(vertices, faces);
+        auto result = Pack(vertices, faces);
+        if (sourceTriangles)
+        {
+            sourceTriangles->clear();
+            sourceTriangles->reserve(faces.size());
+            for (const auto& face : faces) sourceTriangles->push_back(face.Source);
+        }
+        return result;
     }
 }

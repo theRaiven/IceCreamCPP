@@ -4,9 +4,13 @@
 #include "../../IceCream.Core/Services/Measurements/VolumeCalculator.h"
 #include "../../IceCream.Core/Services/Measurements/SectionAreaCalculator.h"
 #include "../../IceCream.Core/Services/Sections/MeshSectionCalculator.h"
+#include "../../IceCream.Core/Services/Meshing/MeshClipper.h"
+#include "../../IceCream.Core/Expressions/Inequalities/InequalityParser.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cctype>
+#include <limits>
 
 using namespace IceCream::Core::Services;
 using namespace IceCream::Core::Models;
@@ -16,6 +20,117 @@ namespace IceCream::App::ViewModels
 {
 	namespace
 	{
+		constexpr double unavailable = std::numeric_limits<double>::quiet_NaN();
+		std::optional<double> TrySectionArea(const SectionResult& section)
+		{
+			for (const auto& contour : section.Contours())
+				if (!contour.IsClosed() && contour.Points2D().size() > 1) return std::nullopt;
+			return section.IsEmpty() ? 0.0 : SectionAreaCalculator().Calculate(section);
+		}
+
+		std::string NormalizeConstraints(const std::string& input)
+		{
+			std::string result;
+			int depth = 0;
+			bool separator = false;
+			for (char c : input)
+			{
+				if ((c == '\n' || c == '\r' || c == ';') && depth == 0)
+				{
+					while (!result.empty() && std::isspace(static_cast<unsigned char>(result.back()))) result.pop_back();
+					if (!result.empty()) separator = true;
+					continue;
+				}
+				if (std::isspace(static_cast<unsigned char>(c)))
+				{
+					if (!result.empty() && !separator) result += ' ';
+					continue;
+				}
+				if (separator && c != ',' && result.back() != ',') result += ',';
+				separator = false;
+				result += c;
+				if (c == '(') ++depth;
+				if (c == ')') --depth;
+			}
+			if (result.size() > 4096) throw std::invalid_argument("Ограничения: не более 4096 символов.");
+			return result;
+		}
+
+		struct PreparedSurface
+		{
+			TriangleMesh Mesh;
+			std::vector<std::array<float, 4>> Colors;
+			std::optional<double> Volume;
+			bool Clipped;
+			std::vector<ConstraintSurface> Constraints;
+		};
+		PreparedSurface PrepareSurface(TriangleMesh mesh, const std::string& constraints,
+		    std::optional<double> volume = std::nullopt, std::vector<std::array<float, 4>> colors = {},
+		    glm::dmat3 rotation = glm::dmat3(1))
+		{
+			auto text = NormalizeConstraints(constraints);
+			std::vector<ConstraintSurface> guides;
+			if (!text.empty())
+			{
+				auto inequalities = Core::Inequalities::InequalityParser::Parse(text);
+				for (auto& inequality : inequalities)
+					inequality = Core::Inequalities::Inequality([inequality, rotation](double x, double y, double z) {
+						auto p = rotation * glm::dvec3(x, y, z);
+						return inequality.Evaluate(p.x, p.y, p.z);
+					}, Core::Inequalities::InequalityRelation::LessOrEqual, inequality.Label());
+
+				// Cache the guides once per build. Use the original, uncut body's bounds,
+				// so the display region does not collapse after clipping.
+				auto low = mesh.Vertices().front(), high = low;
+				for (const auto& p : mesh.Vertices())
+				{
+					low.X = std::min(low.X, p.X); high.X = std::max(high.X, p.X);
+					low.Y = std::min(low.Y, p.Y); high.Y = std::max(high.Y, p.Y);
+					low.Z = std::min(low.Z, p.Z); high.Z = std::max(high.Z, p.Z);
+				}
+				double span = std::max({high.X-low.X, high.Y-low.Y, high.Z-low.Z, .1});
+				auto padding = Vector3D{span*.2, span*.2, span*.2};
+				low = low-padding; high = high+padding;
+				const std::array<glm::vec3, 6> palette{{{.2f,.85f,1.f}, {1.f,.55f,.15f}, {.8f,.45f,1.f},
+				    {.35f,.9f,.45f}, {1.f,.3f,.5f}, {1.f,.85f,.25f}}};
+				for (size_t i = 0; i < inequalities.size(); ++i)
+				{
+					ConstraintSurface guide{inequalities[i].Label(), palette[i % palette.size()], {}};
+					try
+					{
+						auto surface = ImplicitSurfaceBuilder().Build([&](double x, double y, double z) {
+							return inequalities[i].Evaluate(x,y,z);
+						}, low, high, 20,20,20);
+						guide.Triangles.reserve(surface.Indices().size()*3);
+						for (int index : surface.Indices())
+						{
+							const auto& p = surface.Vertices()[index];
+							guide.Triangles.insert(guide.Triangles.end(), {static_cast<float>(p.X), static_cast<float>(p.Y), static_cast<float>(p.Z)});
+							guide.Center += glm::vec3(p.X, p.Y, p.Z);
+						}
+						if (!surface.Indices().empty()) guide.Center /= static_cast<float>(surface.Indices().size());
+					}
+					catch (const std::invalid_argument&) { guide.Undefined = true; }
+					catch (const std::domain_error&) { guide.Undefined = true; }
+					guides.push_back(std::move(guide));
+				}
+				std::vector<size_t> sources;
+				mesh = MeshClipper().Clip(mesh, Core::Inequalities::InequalityRegion(std::move(inequalities)), {},
+				    colors.empty() ? nullptr : &sources);
+				if (!colors.empty())
+				{
+					std::vector<std::array<float, 4>> clippedColors;
+					clippedColors.reserve(sources.size());
+					for (size_t source : sources) clippedColors.push_back(colors.at(source));
+					colors = std::move(clippedColors);
+				}
+				volume.reset(); // The original integral no longer describes the clipped mesh.
+			}
+			if (mesh.TriangleCount() == 0) throw std::invalid_argument("Поверхность пуста. Проверьте формулу, границы и ограничения.");
+			if (!volume) volume = VolumeCalculator().TryCalculate(mesh);
+			return {std::move(mesh), std::move(colors), volume, !text.empty(), std::move(guides)};
+		}
+
 		IceCreamParameters DefaultParameters()
 		{
 			return IceCreamParameters{
@@ -61,7 +176,7 @@ namespace IceCream::App::ViewModels
 		ApplyShape(parameters_, formula_);
 	}
 
-	void MainViewModel::ApplyShape(const IceCreamParameters& parameters, const std::string& formula)
+	void MainViewModel::ApplyShape(const IceCreamParameters& parameters, const std::string& formula, const std::string& constraints)
 	{
 		const double values[] = {parameters.BaseHeight, parameters.JoinRadius, parameters.BaseExponent, parameters.CapHeight};
 		const double low[] = {0.5, 0.2, 0.2, 0.2}, high[] = {8, 4, 3, 4};
@@ -76,14 +191,16 @@ namespace IceCream::App::ViewModels
 
 		auto body = CreateBody(parameters, formula);
 		double volume = VolumeCalculator().Calculate(body.Profile());
+		auto prepared = PrepareSurface(body.Mesh(), constraints, volume);
+		if (prepared.Clipped) body = IceCreamBody(parameters, std::move(prepared.Mesh));
 		auto nextPlane = CreateSectionPlane(false);
         auto section = MeshSectionCalculator().Calculate(body.Mesh(), nextPlane);
-		double area = section.IsEmpty() ? 0 : SectionAreaCalculator().Calculate(section);
+		auto area = TrySectionArea(section);
 		std::vector<Point3D> joinBoundary;
 		std::optional<TriangleMesh> joinDisk;
 		std::vector<SectionContour> joinTrace;
 
-		if (formula == Core::Profiles::FormulaProfile::DefaultFormula())
+		if (!prepared.Clipped && formula == Core::Profiles::FormulaProfile::DefaultFormula())
 		{
 			// Границу частей берём из сетки, чтобы она совпадала с сечением.
 			auto boundary = MeshSectionCalculator().Calculate(body.Mesh(), Plane3D::AtZ(parameters.BaseHeight));
@@ -115,48 +232,71 @@ namespace IceCream::App::ViewModels
 		body_ = std::move(body);
 		formula_ = std::move(acceptedFormula);
 		parameters_ = parameters;
-		volume_ = volume;
+		volume_ = prepared.Volume.value_or(unavailable);
+		volumeAvailable_ = prepared.Volume.has_value();
+		meshVolume_ = prepared.Clipped;
+		implicitSurface_ = false;
+		constraints_ = constraints;
+		constraintSurfaces_ = std::move(prepared.Constraints);
 		sectionPlane_ = nextPlane;
         section_ = std::move(section);
-		sectionArea_ = area;
+		sectionArea_ = area.value_or(unavailable);
+		sectionAreaAvailable_ = area.has_value();
 		joinBoundary_ = std::move(joinBoundary);
 		joinDisk_ = std::move(joinDisk);
 		joinInSection_ = std::move(joinTrace);
 		heightField_ = false;
 		surfaceEdges_.clear();
-		integralParts_.clear(); triangleColors_.clear();
+		integralParts_.clear(); triangleColors_.clear(); integralError_ = 0;
         ++geometryRevision_;
 	}
 
-	void MainViewModel::ApplyHeightField(const Core::Services::HeightFieldBounds& bounds, const std::string& formula)
+	void MainViewModel::ApplyHeightField(const Core::Services::HeightFieldBounds& bounds, const std::string& formula, const std::string& constraints)
 	{
 		auto solid = Core::Services::HeightFieldBuilder().Build(formula, bounds);
-		IceCreamBody body(parameters_, std::move(solid.Mesh));
+		auto rotation = dependentAxis_ == 2 ? glm::dmat3(1) : dependentAxis_ == 0
+		    ? glm::dmat3(0,1,0, 0,0,1, 1,0,0) : glm::dmat3(0,0,1, 1,0,0, 0,1,0);
+		auto prepared = PrepareSurface(std::move(solid.Mesh), constraints, solid.Volume, {}, rotation);
+		IceCreamBody body(parameters_, std::move(prepared.Mesh));
 		auto nextPlane = CreateSectionPlane(true);
         auto section = MeshSectionCalculator().Calculate(body.Mesh(), nextPlane);
-		double area = section.IsEmpty() ? 0 : SectionAreaCalculator().Calculate(section);
+		auto area = TrySectionArea(section);
 		std::string acceptedFormula = formula;
 		body_ = std::move(body);
 		formula_ = std::move(acceptedFormula);
 		sectionPlane_ = nextPlane;
         section_ = std::move(section);
-		sectionArea_ = area;
-		volume_ = solid.Volume;
+		sectionArea_ = area.value_or(unavailable);
+		sectionAreaAvailable_ = area.has_value();
+		volume_ = prepared.Volume.value_or(unavailable);
+		volumeAvailable_ = prepared.Volume.has_value();
+		meshVolume_ = prepared.Clipped;
+		implicitSurface_ = false;
+		constraints_ = constraints;
+		constraintSurfaces_ = std::move(prepared.Constraints);
 		surfaceBounds_ = bounds;
 		surfaceBaseZ_ = solid.BaseZ;
 		surfaceEdges_ = std::move(solid.Edges);
+		if (prepared.Clipped) surfaceEdges_.clear();
 		joinBoundary_.clear();
 		joinDisk_.reset();
 		joinInSection_.clear();
 		heightField_ = true;
-		integralParts_.clear(); triangleColors_.clear();
+		integralParts_.clear(); triangleColors_.clear(); integralError_ = 0;
         ++geometryRevision_;
 	}
 
 
-	void MainViewModel::ApplyImplicitSurface(const std::string& formula, Point3D min, Point3D max, int cellsX, int cellsY, int cellsZ)
+	void MainViewModel::ApplyImplicitSurface(const std::string& formula, Point3D min, Point3D max, int cellsX, int cellsY, int cellsZ, const std::string& constraints)
 	{
-		auto expression = Core::Expressions::ExpressionParser::Compile(formula);
+		for (int cells : {cellsX, cellsY, cellsZ})
+			if (cells < 2 || cells > 128) throw std::invalid_argument("Ячейки по каждой оси: целое число от 2 до 128.");
+		if (static_cast<size_t>(cellsX) * cellsY * cellsZ > 1000000)
+			throw std::invalid_argument("Сетка: не более 1 000 000 ячеек суммарно.");
+		for (double bound : {min.X, min.Y, min.Z, max.X, max.Y, max.Z})
+			if (!std::isfinite(bound) || std::abs(bound) > 1000)
+				throw std::invalid_argument("Границы X, Y, Z должны быть конечными числами от −1000 до 1000.");
+		auto expression = Core::Expressions::ExpressionParser::CompileEquation(formula);
 
 		TriangleMesh mesh = ImplicitSurfaceBuilder().Build(expression, min, max, cellsX, cellsY, cellsZ);
 
@@ -165,18 +305,26 @@ namespace IceCream::App::ViewModels
 			throw std::invalid_argument("Implicit surface is empty");
 		}
 
-		IceCreamBody body(parameters_, std::move(mesh));
+		auto prepared = PrepareSurface(std::move(mesh), constraints);
+		IceCreamBody body(parameters_, std::move(prepared.Mesh));
 
 		auto nextPlane = CreateSectionPlane(false);
 		auto section = MeshSectionCalculator().Calculate(body.Mesh(), nextPlane);
-		double area = section.IsEmpty() ? 0.0 : SectionAreaCalculator().Calculate(section);
+		auto area = TrySectionArea(section);
+		std::string acceptedFormula = formula;
 
 		body_ = std::move(body);
 		sectionPlane_ = nextPlane;
 		section_ = std::move(section);
-		sectionArea_ = area;
+		sectionArea_ = area.value_or(unavailable);
+		sectionAreaAvailable_ = area.has_value();
+		formula_ = std::move(acceptedFormula);
+		constraints_ = constraints;
+		constraintSurfaces_ = std::move(prepared.Constraints);
 
-		volume_ = 0.0;
+		volume_ = prepared.Volume.value_or(unavailable);
+		volumeAvailable_ = prepared.Volume.has_value();
+		implicitSurface_ = meshVolume_ = true;
 		heightField_ = false;
 		dependentAxis_ = 2;
 
@@ -214,10 +362,11 @@ namespace IceCream::App::ViewModels
     {
         auto plane=CreateSectionPlane(heightField_);
         auto section=MeshSectionCalculator().Calculate(body_.Mesh(),plane);
-        double area=section.IsEmpty()?0:SectionAreaCalculator().Calculate(section);
+        auto area=TrySectionArea(section);
         std::vector<SectionContour> join;
         if(joinDisk_) join=MeshSectionCalculator().Calculate(*joinDisk_,plane).Contours();
-        sectionPlane_=plane;section_=std::move(section);sectionArea_=area;joinInSection_=std::move(join);
+        sectionPlane_=plane;section_=std::move(section);sectionArea_=area.value_or(unavailable);
+        sectionAreaAvailable_=area.has_value();joinInSection_=std::move(join);
     }
 
 	void MainViewModel::SetBaseHeight(double value)
@@ -250,7 +399,7 @@ namespace IceCream::App::ViewModels
 
 	void MainViewModel::ResetDefaults()
 	{
-		const bool integral=IsIntegralBody();
+		const bool integral=IsIntegralBody() || IsImplicitSurface();
         dependentAxis_ = 2;
 		formula_ = Core::Profiles::FormulaProfile::DefaultFormula();
 		parameters_ = DefaultParameters();
@@ -265,9 +414,9 @@ namespace IceCream::App::ViewModels
 	void MainViewModel::SetSectionPosition(int axis, double value)
 	{
         const auto previous=sectionPosition_;
-		if (axis < 0 || axis > 2 || !std::isfinite(value) || value < -20 || value > 20)
+		if (axis < 0 || axis > 2 || !std::isfinite(value) || std::abs(value) > SectionPositionLimit)
 		{
-			throw std::out_of_range("Position must be between -20 and 20.");
+			throw std::out_of_range("Положение плоскости должно быть от −1000 до 1000.");
 		}
 
 		if (axis == 0)
@@ -291,7 +440,7 @@ namespace IceCream::App::ViewModels
     void MainViewModel::SetSectionPose(Point3D position, Vector3D rotation)
     {
         for(double value : {position.X,position.Y,position.Z})
-            if(!std::isfinite(value) || std::abs(value)>20) throw std::out_of_range("Invalid section position");
+            if(!std::isfinite(value) || std::abs(value)>SectionPositionLimit) throw std::out_of_range("Invalid section position");
         for(double value : {rotation.X,rotation.Y,rotation.Z})
             if(!std::isfinite(value) || std::abs(value)>180) throw std::out_of_range("Invalid section rotation");
         const auto oldPosition=sectionPosition_;
@@ -380,17 +529,22 @@ namespace IceCream::App::ViewModels
 			if (!std::isfinite(color[i]) || color[i]<0 || color[i]>1) throw std::invalid_argument("Invalid color");
 		appearance_=settings;
 	}
-    void MainViewModel::ApplyIntegralParts(const std::vector<IntegralPart>& parts)
+    void MainViewModel::ApplyIntegralParts(const std::vector<IntegralPart>& parts, const std::string& constraints)
     {
         auto accepted=parts;
         auto solid=IntegralBodyBuilder().Build(parts);
-        IceCreamBody body(parameters_,std::move(solid.Mesh));
+        auto prepared = PrepareSurface(std::move(solid.Mesh), constraints, solid.Integral, std::move(solid.TriangleColors));
+        IceCreamBody body(parameters_,std::move(prepared.Mesh));
         auto plane=CreateSectionPlane(false);
         auto section=MeshSectionCalculator().Calculate(body.Mesh(),plane);
-        double area=section.IsEmpty()?0:SectionAreaCalculator().Calculate(section);
-        body_=std::move(body);sectionPlane_=plane;section_=std::move(section);sectionArea_=area;
-        volume_=solid.Integral;integralError_=solid.EstimatedError;integralParts_=std::move(accepted);
-        triangleColors_=std::move(solid.TriangleColors);surfaceEdges_=std::move(solid.Seams);
+        auto area=TrySectionArea(section);
+        body_=std::move(body);sectionPlane_=plane;section_=std::move(section);sectionArea_=area.value_or(unavailable);
+        sectionAreaAvailable_=area.has_value();
+        volume_=prepared.Volume.value_or(unavailable);volumeAvailable_=prepared.Volume.has_value();
+        meshVolume_=prepared.Clipped;implicitSurface_=false;constraints_=constraints;
+        constraintSurfaces_=std::move(prepared.Constraints);
+        integralError_=prepared.Clipped ? 0 : solid.EstimatedError;integralParts_=std::move(accepted);
+        triangleColors_=std::move(prepared.Colors);surfaceEdges_=prepared.Clipped ? std::vector<std::vector<Point3D>>{} : std::move(solid.Seams);
         heightField_=false;dependentAxis_=2;joinDisk_.reset();joinBoundary_.clear();joinInSection_.clear();
         ++geometryRevision_;
     }
