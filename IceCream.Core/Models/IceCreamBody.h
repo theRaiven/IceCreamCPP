@@ -38,7 +38,7 @@ namespace IceCream::Core::Models
 
 		const Profiles::IRadialProfile& Profile() const
 		{
-			if (!profile_) throw std::logic_error("This body is not radial");
+			if (!profile_) throw std::logic_error("Это тело не является радиальным");
             return *profile_;
 		}
 

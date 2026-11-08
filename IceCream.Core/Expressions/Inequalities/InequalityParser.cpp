@@ -55,7 +55,7 @@ namespace IceCream::Core::Inequalities
 
                     if (depth < 0)
                     {
-                        throw invalid_argument("Unexpected closing parenthesis");
+                        throw invalid_argument("Неожиданная закрывающая скобка");
                     }
                 }
                 else if (c == ',' && depth == 0)
@@ -64,7 +64,7 @@ namespace IceCream::Core::Inequalities
 
                     if (condition.empty())
                     {
-                        throw invalid_argument("Empty inequality");
+                        throw invalid_argument("Пустое неравенство");
                     }
 
                     conditions.push_back(condition);
@@ -74,14 +74,14 @@ namespace IceCream::Core::Inequalities
 
             if (depth != 0)
             {
-                throw invalid_argument("Unclosed parenthesis");
+                throw invalid_argument("Незакрытая скобка");
             }
 
             string condition = Trim(text.substr(start));
 
             if (condition.empty())
             {
-                throw invalid_argument("Empty inequality");
+                throw invalid_argument("Пустое неравенство");
             }
 
             conditions.push_back(condition);
@@ -114,7 +114,7 @@ namespace IceCream::Core::Inequalities
 
                     if (expression.empty())
                     {
-                        throw invalid_argument("Empty expression in inequality");
+                        throw invalid_argument("Пустое выражение в неравенстве");
                     }
 
                     result.expressions.push_back(expression);
@@ -136,7 +136,7 @@ namespace IceCream::Core::Inequalities
                 }
                 else if (c == '=' && depth == 0)
                 {
-                    throw invalid_argument("Unexpected '=' in inequality");
+                    throw invalid_argument("Непредвиденный '=' в неравенстве");
                 }
             }
 
@@ -144,14 +144,14 @@ namespace IceCream::Core::Inequalities
 
             if (expression.empty())
             {
-                throw invalid_argument("Empty expression in inequality");
+                throw invalid_argument("Пустое выражение в неравенстве");
             }
 
             result.expressions.push_back(expression);
 
             if (result.operators.empty())
             {
-                throw invalid_argument("Missing comparison operator");
+                throw invalid_argument("Отсутствующий оператор сравнения");
             }
 
             return result;

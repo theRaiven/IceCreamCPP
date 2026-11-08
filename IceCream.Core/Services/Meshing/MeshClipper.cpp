@@ -49,7 +49,7 @@ namespace IceCream::Core::Services
         double Value(const Inequality& inequality, const Point3D& p)
         {
             double value = inequality.Evaluate(p.X, p.Y, p.Z);
-            if (!isfinite(value)) throw invalid_argument("Non-finite inequality value");
+            if (!isfinite(value)) throw invalid_argument("Бесконечное значение неравенства");
             return value;
         }
 
@@ -57,7 +57,7 @@ namespace IceCream::Core::Services
         {
             if (a == b || b == c || c == a) return;
             if (Degenerate(vertices[a], vertices[b], vertices[c])) return;
-            if (faces.size() >= limit) throw length_error("MeshClipper exceeded maxTriangles");
+            if (faces.size() >= limit) throw length_error("MeshClipper превысил максимальное количество треугольников");
             faces.push_back({ a, b, c });
         }
 
@@ -95,7 +95,7 @@ namespace IceCream::Core::Services
 
                 for (auto& entry : midpoints)
                 {
-                    if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Too many vertices");
+                    if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Слишком много вершин");
                     const Edge& edge = entry.first;
                     entry.second = static_cast<int>(vertices.size());
                     vertices.push_back(Lerp(vertices[edge.first], vertices[edge.second], 0.5));
@@ -117,7 +117,7 @@ namespace IceCream::Core::Services
                         AddFace(next, vertices, face[0], face[1], face[2], options.maxTriangles);
                         continue;
                     }
-                    if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Too many vertices");
+                    if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Слишком много вершин");
                     const Point3D& a = vertices[face[0]];
                     const Point3D& b = vertices[face[1]];
                     const Point3D& c = vertices[face[2]];
@@ -149,7 +149,7 @@ namespace IceCream::Core::Services
                 if ((midValue <= 0.0) == startInside) lo = middle;
                 else hi = middle;
             }
-            if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Too many vertices");
+            if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Слишком много вершин");
             int index = static_cast<int>(vertices.size());
             Point3D intersection = Lerp(p, q, (lo + hi) * 0.5);
             vertices.push_back(intersection);
@@ -190,7 +190,7 @@ namespace IceCream::Core::Services
                 {
                     if (oldToNew[id] < 0)
                     {
-                        if (outputVertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Too many vertices");
+                        if (outputVertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Слишком много вершин");
                         oldToNew[id] = static_cast<int>(outputVertices.size());
                         outputVertices.push_back(vertices[id]);
                     }
@@ -205,9 +205,9 @@ namespace IceCream::Core::Services
     {
         if (options.maxSubdivisionDepth < 0 || options.maxSubdivisionDepth > 12 || !isfinite(options.maxEdgeLength) || options.maxEdgeLength < 0 || options.maxTriangles == 0)
         {
-            throw invalid_argument("Invalid MeshClipperOptions");
+            throw invalid_argument("Неверные параметры MeshClipper");
         }
-        if (mesh.TriangleCount() > options.maxTriangles) throw length_error("MeshClipper exceeded maxTriangles");
+        if (mesh.TriangleCount() > options.maxTriangles) throw length_error("MeshClipper превысил максимальное количество треугольников");
 
         vector<Point3D> vertices;
         vector<Face> faces;
@@ -220,7 +220,7 @@ namespace IceCream::Core::Services
             auto found = canonical.find(key);
             if (found == canonical.end())
             {
-                if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Too many vertices");
+                if (vertices.size() >= static_cast<size_t>(numeric_limits<int>::max())) throw length_error("Слишком много вершин");
                 int id = static_cast<int>(vertices.size());
                 vertices.push_back(p);
                 canonical.emplace(key, id);

@@ -13,7 +13,7 @@ namespace IceCream::Core::Inequalities
     {
         if (inequalities_.empty())
         {
-            throw invalid_argument("Inequality region cannot be empty");
+            throw invalid_argument("Область неравенства не может быть пустой");
         }
     }
 

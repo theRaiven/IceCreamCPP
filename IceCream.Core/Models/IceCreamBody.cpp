@@ -21,7 +21,7 @@ namespace IceCream::Core::Models
     { }
 
     IceCreamBody::IceCreamBody(IceCreamParameters parameters, std::shared_ptr<const Profiles::IRadialProfile> profile, const SurfaceMeshBuilder& builder)
-        : parameters_(parameters), profile_(profile ? std::move(profile) : throw std::invalid_argument("Profile cannot be null")), mesh_(builder.Build(*profile_)) {
+        : parameters_(parameters), profile_(profile ? std::move(profile) : throw std::invalid_argument("Профиль не может быть пустым")), mesh_(builder.Build(*profile_)) {
     }
 
     IceCreamBody::IceCreamBody(IceCreamParameters p, TriangleMesh mesh) :parameters_(p), mesh_(std::move(mesh)) {}

@@ -45,7 +45,7 @@ namespace IceCream::Core::Expressions
 
             [[noreturn]] void Error(const char* message) const
             {
-                throw invalid_argument(string(message) + " (position " + to_string(position + 1) + ")");
+                throw invalid_argument(string(message) + " (позиция " + to_string(position + 1) + ")");
             }
 
             CompiledExpression Compare()
@@ -410,7 +410,7 @@ namespace IceCream::Core::Expressions
     {
         if (formula.empty() || formula.size() > 512)
         {
-            throw std::invalid_argument("Formula must contain 1 to 512 characters");
+            throw std::invalid_argument("Формула должна содержать от 1 до 512 символов");
         }
 
         return Parser(formula, constants).Parse();
@@ -426,7 +426,7 @@ namespace IceCream::Core::Expressions
             formula.find('=', pos + 1) != string::npos ||
             formula[pos - 1] == '<' || formula[pos - 1] == '>')
         {
-            throw invalid_argument("Invalid equation");
+            throw invalid_argument("Неверное уравнение");
         }
 
         auto left = Compile(formula.substr(0, pos), constants);

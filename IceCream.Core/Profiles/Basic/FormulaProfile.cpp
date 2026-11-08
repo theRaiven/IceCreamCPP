@@ -46,7 +46,7 @@ namespace IceCream::Core::Profiles
     {
         if (!isfinite(minZ_) || !isfinite(maxZ_) || minZ_ >= maxZ_)
         {
-            throw invalid_argument("Invalid formula profile range");
+            throw invalid_argument("Недопустимый диапазон профиля формулы");
         }
 
         auto expression = CompileExpression(formula, parameters);
@@ -64,7 +64,7 @@ namespace IceCream::Core::Profiles
 
             if (i > 0 && i < 2048 && radius <= 1e-8)
             {
-                throw invalid_argument("Radius must be positive inside formula profile range");
+                throw invalid_argument("Радиус должен быть положительным внутри диапазона профиля формулы");
             }
         }
     }
@@ -73,14 +73,14 @@ namespace IceCream::Core::Profiles
     {
         if (!isfinite(z) || z < minZ_ || z > maxZ_)
         {
-            throw out_of_range("Height outside formula domain");
+            throw out_of_range("Высота вне домена формулы");
         }
 
         double radius = expression_(z);
 
         if (!isfinite(radius) ||radius < 0 ||  radius > 20)
         {
-            throw invalid_argument("Formula radius must be finite and between 0 and 20");
+            throw invalid_argument("Радиус формулы должен быть конечным и находиться в диапазоне от 0 до 20");
         }
 
         if ((z == minZ_ || z == maxZ_) && radius < 1e-8)

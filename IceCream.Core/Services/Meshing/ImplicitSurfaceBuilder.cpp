@@ -1,14 +1,13 @@
-
 #include "ImplicitSurfaceBuilder.h"
 #include "MarchingCubesTables.h"
 
-#include <utility>
-#include <cmath>
-#include <stdexcept>
-#include <vector>
-#include <array>
-#include <map>
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <map>
+#include <stdexcept>
+#include <utility>
+#include <vector>
 
 using namespace std;
 using namespace IceCream::Core::Geometry;
@@ -17,38 +16,63 @@ using namespace IceCream::Core::Expressions;
 namespace IceCream::Core::Services
 {
     /// <summary>
-	/// Строит треугольную сетку, представляющую неявную поверхность, заданную скалярным полем.
+    /// Строит треугольную сетку неявной поверхности g(x, y, z) = 0.
     /// </summary>
     TriangleMesh ImplicitSurfaceBuilder::Build(const CompiledExpression& expression, Point3D min, Point3D max, int cellsX, int cellsY, int cellsZ) const
     {
         if (!expression)
         {
-            throw invalid_argument("Expression must not be empty");
+            throw invalid_argument("Не задана функция для построения поверхности.");
         }
 
         if (cellsX < 1 || cellsY < 1 || cellsZ < 1)
         {
-            throw invalid_argument("Grid resolution must be positive");
+            throw invalid_argument("Количество ячеек сетки по каждой оси должно быть положительным.");
         }
 
-        if (!isfinite(min.X) || !isfinite(min.Y) || !isfinite(min.Z) ||
-            !isfinite(max.X) || !isfinite(max.Y) || !isfinite(max.Z))
+        for (double value : {min.X, min.Y, min.Z, max.X, max.Y, max.Z})
         {
-            throw invalid_argument("Grid bounds must be finite");
+            if (!isfinite(value))
+            {
+                throw invalid_argument("Границы области построения должны быть конечными числами.");
+            }
         }
 
         if (min.X >= max.X || min.Y >= max.Y || min.Z >= max.Z)
         {
-            throw invalid_argument("Invalid grid bounds");
+            throw invalid_argument("Минимальные границы области должны быть меньше максимальных.");
         }
 
-        double stepX = (max.X - min.X) / cellsX;
-        double stepY = (max.Y - min.Y) / cellsY;
-        double stepZ = (max.Z - min.Z) / cellsZ;
+        const double sizeX = max.X - min.X;
+        const double sizeY = max.Y - min.Y;
+        const double sizeZ = max.Z - min.Z;
 
-        size_t countX = static_cast<size_t>(cellsX) + 1;
-        size_t countY = static_cast<size_t>(cellsY) + 1;
-        size_t countZ = static_cast<size_t>(cellsZ) + 1;
+        if (!isfinite(sizeX) || !isfinite(sizeY) || !isfinite(sizeZ))
+        {
+            throw invalid_argument("Слишком большие размеры области построения.");
+        }
+
+        const double stepX = sizeX / cellsX;
+        const double stepY = sizeY / cellsY;
+        const double stepZ = sizeZ / cellsZ;
+
+        if (stepX <= 0.0 || stepY <= 0.0 || stepZ <= 0.0 ||
+            min.X + stepX == min.X || min.Y + stepY == min.Y || min.Z + stepZ == min.Z)
+        {
+            throw invalid_argument("Шаг сетки слишком мал для заданной области и разрешения.");
+        }
+
+        const size_t countX = static_cast<size_t>(cellsX) + 1;
+        const size_t countY = static_cast<size_t>(cellsY) + 1;
+        const size_t countZ = static_cast<size_t>(cellsZ) + 1;
+
+        // Ограничиваем расход памяти, а не диапазоны координат.
+        constexpr size_t maxGridNodes = 2'000'000;
+
+        if (countX > maxGridNodes / countY || countX * countY > maxGridNodes / countZ)
+        {
+            throw invalid_argument("Слишком большое количество узлов трёхмерной сетки. Уменьшите число ячеек.");
+        }
 
         vector<double> values(countX * countY * countZ);
 
@@ -57,21 +81,16 @@ namespace IceCream::Core::Services
                 return (k * countY + j) * countX + i;
             };
 
-
         auto GetPoint = [min, stepX, stepY, stepZ, countX, countY](size_t index) -> Point3D
             {
                 size_t i = index % countX;
                 size_t j = (index / countX) % countY;
                 size_t k = index / (countX * countY);
 
-                return {
-                    min.X + i * stepX,
-                    min.Y + j * stepY,
-                    min.Z + k * stepZ
-                };
+                return { min.X + i * stepX, min.Y + j * stepY, min.Z + k * stepZ };
             };
 
-
+        // Вычисление скалярного поля в узлах сетки.
         for (int k = 0; k <= cellsZ; ++k)
         {
             for (int j = 0; j <= cellsY; ++j)
@@ -81,12 +100,11 @@ namespace IceCream::Core::Services
                     double x = min.X + i * stepX;
                     double y = min.Y + j * stepY;
                     double z = min.Z + k * stepZ;
-
                     double value = expression(x, y, z);
 
                     if (!isfinite(value))
                     {
-                        throw invalid_argument("Non-finite scalar field value");
+                        throw invalid_argument("Функция принимает недопустимое значение в заданной области.");
                     }
 
                     values[Index(i, j, k)] = value;
@@ -94,6 +112,7 @@ namespace IceCream::Core::Services
             }
         }
 
+        // Смещение значений, слишком близких к нулю, для уменьшения вырожденных случаев.
         vector<double> correctedValues = values;
 
         for (int k = 0; k <= cellsZ; ++k)
@@ -108,15 +127,19 @@ namespace IceCream::Core::Services
                     auto ConsiderNeighbor = [&](size_t ni, size_t nj, size_t nk)
                         {
                             double difference = abs(values[index] - values[Index(ni, nj, nk)]);
+
+                            if (!isfinite(difference))
+                            {
+                                throw invalid_argument("Слишком большой перепад значений функции между соседними узлами сетки.");
+                            }
+
                             localScale = std::max(localScale, difference);
                         };
 
                     if (i > 0) ConsiderNeighbor(i - 1, j, k);
                     if (i < cellsX) ConsiderNeighbor(i + 1, j, k);
-
                     if (j > 0) ConsiderNeighbor(i, j - 1, k);
                     if (j < cellsY) ConsiderNeighbor(i, j + 1, k);
-
                     if (k > 0) ConsiderNeighbor(i, j, k - 1);
                     if (k < cellsZ) ConsiderNeighbor(i, j, k + 1);
 
@@ -132,7 +155,6 @@ namespace IceCream::Core::Services
 
         values.swap(correctedValues);
 
-
         struct ActiveCube
         {
             array<size_t, 8> corners;
@@ -141,6 +163,7 @@ namespace IceCream::Core::Services
 
         vector<ActiveCube> activeCubes;
 
+        // Поиск кубов, пересекаемых поверхностью.
         for (int k = 0; k < cellsZ; ++k)
         {
             for (int j = 0; j < cellsY; ++j)
@@ -148,14 +171,10 @@ namespace IceCream::Core::Services
                 for (int i = 0; i < cellsX; ++i)
                 {
                     array<size_t, 8> cube = {
-                        Index(i, j, k),
-                        Index(i + 1, j, k),
-                        Index(i + 1, j + 1, k),
-                        Index(i, j + 1, k),
-                        Index(i, j, k + 1),
-                        Index(i + 1, j, k + 1),
-                        Index(i + 1, j + 1, k + 1),
-                        Index(i, j + 1, k + 1)
+                        Index(i, j, k), Index(i + 1, j, k),
+                        Index(i + 1, j + 1, k), Index(i, j + 1, k),
+                        Index(i, j, k + 1), Index(i + 1, j, k + 1),
+                        Index(i + 1, j + 1, k + 1), Index(i, j + 1, k + 1)
                     };
 
                     unsigned int configuration = 0;
@@ -184,10 +203,13 @@ namespace IceCream::Core::Services
             {0, 4}, {1, 5}, {2, 6}, {3, 7}
         };
 
+        const double maxStep = std::max(stepX, std::max(stepY, stepZ));
+
         vector<Point3D> vertices;
         vector<int> indices;
         map<pair<size_t, size_t>, int> vertexCache;
 
+        // Построение треугольников по таблице Marching Cubes.
         for (const ActiveCube& cube : activeCubes)
         {
             array<Point3D, 12> edgePoints{};
@@ -209,7 +231,11 @@ namespace IceCream::Core::Services
                 Point3D a = GetPoint(indexA);
                 Point3D b = GetPoint(indexB);
 
-                double t = valueA / (valueA - valueB);
+                // Нормализация предотвращает переполнение при вычислении разности значений.
+                double scale = std::max(abs(valueA), abs(valueB));
+                double scaledA = valueA / scale;
+                double scaledB = valueB / scale;
+                double t = scaledA / (scaledA - scaledB);
 
                 edgePoints[edge] = {
                     a.X + t * (b.X - a.X),
@@ -266,7 +292,6 @@ namespace IceCream::Core::Services
                     }
 
                     vertexCache.emplace(key, index);
-
                     return index;
                 };
 
@@ -278,7 +303,7 @@ namespace IceCream::Core::Services
 
                 if (!intersected[edgeA] || !intersected[edgeB] || !intersected[edgeC])
                 {
-                    throw logic_error("Invalid Marching Cubes triangulation");
+                    throw logic_error("Ошибка триангуляции Marching Cubes: отсутствует точка пересечения ребра.");
                 }
 
                 int a = GetVertexIndex(edgeA);
@@ -290,18 +315,18 @@ namespace IceCream::Core::Services
                     continue;
                 }
 
-
                 const Point3D& p0 = vertices[a];
                 const Point3D& p1 = vertices[b];
                 const Point3D& p2 = vertices[c];
 
-                double ux = p1.X - p0.X;
-                double uy = p1.Y - p0.Y;
-                double uz = p1.Z - p0.Z;
+                // Сравнение относительной площади не переполняется при больших координатах.
+                double ux = (p1.X - p0.X) / maxStep;
+                double uy = (p1.Y - p0.Y) / maxStep;
+                double uz = (p1.Z - p0.Z) / maxStep;
 
-                double vx = p2.X - p0.X;
-                double vy = p2.Y - p0.Y;
-                double vz = p2.Z - p0.Z;
+                double vx = (p2.X - p0.X) / maxStep;
+                double vy = (p2.Y - p0.Y) / maxStep;
+                double vz = (p2.Z - p0.Z) / maxStep;
 
                 double nx = uy * vz - uz * vy;
                 double ny = uz * vx - ux * vz;
@@ -309,14 +334,12 @@ namespace IceCream::Core::Services
 
                 double areaSquared4 = nx * nx + ny * ny + nz * nz;
 
-                double maxStep = std::max(stepX, std::max(stepY, stepZ));
-                double tolerance = 1e-24 * maxStep * maxStep * maxStep * maxStep;
-
-                if (areaSquared4 <= tolerance)
+                if (areaSquared4 <= 1e-24)
                 {
                     continue;
                 }
 
+                // Сохраняем ориентацию треугольников из исходной реализации.
                 indices.push_back(a);
                 indices.push_back(c);
                 indices.push_back(b);
