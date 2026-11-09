@@ -67,7 +67,7 @@ namespace IceCream::Core::Services
         const size_t countZ = static_cast<size_t>(cellsZ) + 1;
 
         // Ограничиваем расход памяти, а не диапазоны координат.
-        constexpr size_t maxGridNodes = 2'000'000;
+        constexpr size_t maxGridNodes = 20'000'000;
 
         if (countX > maxGridNodes / countY || countX * countY > maxGridNodes / countZ)
         {
