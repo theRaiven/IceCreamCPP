@@ -23,7 +23,7 @@ namespace IceCream::App::ViewModels
 		std::string Condition;
 		glm::vec3 Color;
 		std::vector<float> Triangles;
-		glm::vec3 Center{0};
+		glm::vec3 Center{ 0 };
 		bool Undefined = false;
 	};
 	/// <summary>
@@ -49,38 +49,39 @@ namespace IceCream::App::ViewModels
 		double volume_ = 0.0;
 		double sectionArea_ = 0.0;
 		bool volumeAvailable_ = true, sectionAreaAvailable_ = true;
-		bool implicitSurface_ = false, meshVolume_ = false;
+		bool implicitSurface_ = false, inequalityBody_ = false, meshVolume_ = false;
 		std::string constraints_;
 		std::vector<ConstraintSurface> constraintSurfaces_;
-		Core::Geometry::Point3D sectionPosition_{0.0, 0.0, 2.1};
+		Core::Geometry::Point3D sectionPosition_{ 0.0, 0.0, 2.1 };
 		Core::Geometry::Vector3D sectionRotation_{};
-		
+
 		Views::Graphics::LightingSettings lighting_;
 		AppearanceSettings appearance_;
 		int dependentAxis_ = 2;
-        std::vector<Core::Services::IntegralPart> integralParts_;
-        std::vector<std::array<float,4>> triangleColors_;
-        double integralError_=0;
+		std::vector<Core::Services::IntegralPart> integralParts_;
+		std::vector<std::array<float, 4>> triangleColors_;
+		double integralError_ = 0;
 
 		static Core::Models::IceCreamBody CreateBody(const Core::Models::IceCreamParameters& parameters, const std::string& formula);
 		void RebuildBody();
 		void RecalculateSection();
-        Core::Geometry::Plane3D CreateSectionPlane(bool surface) const;
+		Core::Geometry::Plane3D CreateSectionPlane(bool surface) const;
 
 	public:
-        static constexpr double SectionPositionLimit = 1000;
+		static constexpr double SectionPositionLimit = 1000;
 		void ApplyIntegralParts(const std::vector<Core::Services::IntegralPart>& parts, const std::string& constraints = "");
-        const auto& IntegralParts() const { return integralParts_; }
-        const auto& TriangleColors() const { return triangleColors_; }
-        bool IsIntegralBody() const { return !integralParts_.empty(); }
-        double IntegralError() const { return integralError_; }
+		const auto& IntegralParts() const { return integralParts_; }
+		const auto& TriangleColors() const { return triangleColors_; }
+		bool IsIntegralBody() const { return !integralParts_.empty(); }
+		double IntegralError() const { return integralError_; }
 		bool HasVolume() const { return volumeAvailable_; }
 		bool HasSectionArea() const { return sectionAreaAvailable_; }
 		bool UsesMeshVolume() const { return meshVolume_; }
 		bool IsImplicitSurface() const { return implicitSurface_; }
+		bool IsInequalityBody() const { return inequalityBody_; }
 		const std::string& Constraints() const { return constraints_; }
 		const auto& ConstraintSurfaces() const { return constraintSurfaces_; }
-        const AppearanceSettings& Appearance() const { return appearance_; }
+		const AppearanceSettings& Appearance() const { return appearance_; }
 		void SetAppearance(const AppearanceSettings& settings);
 		int DependentAxis() const { return dependentAxis_; }
 		void SetDependentAxis(int axis);
@@ -154,7 +155,11 @@ namespace IceCream::App::ViewModels
 
 		void ApplyHeightField(const Core::Services::HeightFieldBounds& bounds, const std::string& formula, const std::string& constraints = "");
 		void ApplyImplicitSurface(const std::string& formula, Core::Geometry::Point3D min, Core::Geometry::Point3D max,
-		    int cellsX = 40, int cellsY = 40, int cellsZ = 40, const std::string& constraints = "");
+			int cellsX = 40, int cellsY = 40, int cellsZ = 40, const std::string& constraints = "");
+		void EstimateImplicitBounds(const std::string& formula, Core::Geometry::Point3D& min, Core::Geometry::Point3D& max) const;
+		void EstimateInequalityBounds(const std::string& inequalities, Core::Geometry::Point3D& min, Core::Geometry::Point3D& max) const;
+		void ApplyInequalityBody(const std::string& inequalities, Core::Geometry::Point3D min, Core::Geometry::Point3D max,
+			int cellsX = 40, int cellsY = 40, int cellsZ = 40);
 		void ApplyShape(const Core::Models::IceCreamParameters& parameters, const std::string& formula, const std::string& constraints = "");
 
 		bool HasPartJoin() const
