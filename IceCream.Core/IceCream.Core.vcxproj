@@ -60,6 +60,7 @@
     <ClCompile Include="Geometry\Meshes\TriangleMesh.cpp" />
     <ClCompile Include="Geometry\Primitives\Vector3D.cpp" />
     <ClCompile Include="Models\IceCreamBody.cpp" />
+    <ClCompile Include="Services\Meshing\InequalityBodyBuilder.cpp" />
     <ClCompile Include="Services\Meshing\MeshClipper.cpp" />
     <ClCompile Include="Services\Sections\SectionContour.cpp" />
     <ClCompile Include="Services\Sections\SectionResult.cpp" />
@@ -90,6 +91,7 @@
     <ClInclude Include="Geometry\Primitives\Vector3D.h" />
     <ClInclude Include="Models\IceCreamBody.h" />
     <ClInclude Include="Models\IceCreamParameters.h" />
+    <ClInclude Include="Services\Meshing\InequalityBodyBuilder.h" />
     <ClInclude Include="Services\Meshing\MarchingCubesTables.h" />
     <ClInclude Include="Services\Meshing\MeshClipper.h" />
     <ClInclude Include="Services\Sections\SectionContour.h" />

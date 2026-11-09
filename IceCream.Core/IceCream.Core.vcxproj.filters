@@ -73,6 +73,7 @@
     <ClCompile Include="Expressions\Inequalities\InequalityRegion.cpp" />
     <ClCompile Include="Services\Meshing\ImplicitSurfaceBuilder.cpp" />
     <ClCompile Include="Services\Meshing\MeshClipper.cpp" />
+    <ClCompile Include="Services\Meshing\InequalityBodyBuilder.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Geometry\Primitives\Plane3D.h">
@@ -141,5 +142,6 @@
     <ClInclude Include="Services\Meshing\ImplicitSurfaceBuilder.h" />
     <ClInclude Include="Services\Meshing\MarchingCubesTables.h" />
     <ClInclude Include="Services\Meshing\MeshClipper.h" />
+    <ClInclude Include="Services\Meshing\InequalityBodyBuilder.h" />
   </ItemGroup>
 </Project>
