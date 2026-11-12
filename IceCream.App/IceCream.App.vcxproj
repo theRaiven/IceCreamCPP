@@ -96,6 +96,7 @@
     <ClInclude Include="ViewModels\MainViewModel.h" />
     <ClInclude Include="Views\Graphics\OrbitCamera\LightingSettings.h" />
     <ClInclude Include="Views\Graphics\Render\LineRenderer.h" />
+    <ClInclude Include="Views\Graphics\Render\MeshNormals.h" />
     <ClInclude Include="Views\Graphics\Render\MeshRenderer.h" />
     <ClInclude Include="Views\Graphics\OrbitCamera\OrbitCamera.h" />
     <ClInclude Include="Views\Graphics\OrbitCamera\OverlayText.h" />

@@ -1,8 +1,11 @@
 #include "MeshRenderer.h"
 #include "../ShaderSource/ShaderSource.h"
+#include "MeshNormals.h"
 
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
+#include <array>
+#include <limits>
 #include <glm/gtc/matrix_transform.hpp>
 #include <stdexcept>
 
@@ -57,23 +60,71 @@ namespace IceCream::App::Views::Graphics
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
-    void MeshRenderer::Upload(const Core::Geometry::TriangleMesh& mesh,const std::vector<std::array<float,4>>& colors)
-    {
-        hasColors_=!colors.empty();
-        if(hasColors_ && colors.size()!=mesh.TriangleCount()) throw std::invalid_argument("Material count does not match mesh");
-        std::vector<float> vertices;
-        std::vector<GLuint> indices;
-        auto push=[&](const Core::Geometry::Point3D& p,const std::array<float,4>& c){vertices.insert(vertices.end(),{float(p.X),float(p.Y),float(p.Z),c[0],c[1],c[2],c[3]});};
-        if(hasColors_) {for(size_t i=0;i<mesh.Indices().size();++i){push(mesh.Vertices()[mesh.Indices()[i]],colors[i/3]);indices.push_back(static_cast<GLuint>(i));}}
-        else {for(auto p:mesh.Vertices())push(p,{{1,1,1,1}});for(int i:mesh.Indices())indices.push_back(i);}
-        indexCount_=static_cast<GLsizei>(indices.size());
-        if(!vao_){glGenVertexArrays(1,&vao_);glGenBuffers(1,&vbo_);glGenBuffers(1,&ebo_);}
-        glBindVertexArray(vao_);glBindBuffer(GL_ARRAY_BUFFER,vbo_);glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(float),vertices.data(),GL_DYNAMIC_DRAW);
-        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,7*sizeof(float),nullptr);glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1,4,GL_FLOAT,GL_FALSE,7*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));glEnableVertexAttribArray(1);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ebo_);glBufferData(GL_ELEMENT_ARRAY_BUFFER,indices.size()*sizeof(GLuint),indices.data(),GL_DYNAMIC_DRAW);
-        glBindVertexArray(0);glBindBuffer(GL_ARRAY_BUFFER,0);
-    }
+	void MeshRenderer::Upload(const Core::Geometry::TriangleMesh& mesh, const std::vector<std::array<float, 4>>& colors)
+	{
+		hasColors_ = !colors.empty();
+
+		if (hasColors_ && colors.size() != mesh.TriangleCount())
+		{
+			throw std::invalid_argument("Количество цветов не соответствует количеству треугольников.");
+		}
+
+		const auto& points = mesh.Vertices();
+		const auto& sourceIndices = mesh.Indices();
+		const auto cornerNormals = CalculateCornerNormals(mesh, colors);
+
+		if (sourceIndices.size() > static_cast<size_t>(std::numeric_limits<GLsizei>::max()))
+		{
+			throw std::length_error("Слишком много индексов для отрисовки сетки.");
+		}
+
+		// Для каждого угла треугольника сохраняем собственную нормаль.
+		// На гладких рёбрах они совпадают, на острых — могут различаться.
+		// Формат вершины: позиция (3), цвет (4), нормаль (3).
+		std::vector<float> vertices;
+		std::vector<GLuint> indices;
+		vertices.reserve(sourceIndices.size() * 10);
+		indices.reserve(sourceIndices.size());
+
+		for (size_t i = 0; i < sourceIndices.size(); ++i)
+		{
+			const auto& p = points[sourceIndices[i]];
+			const auto& normal = cornerNormals[i];
+			const std::array<float, 4> color = hasColors_ ? colors[i / 3] : std::array<float, 4>{ 1, 1, 1, 1 };
+
+			vertices.insert(vertices.end(), {
+				static_cast<float>(p.X), static_cast<float>(p.Y), static_cast<float>(p.Z),
+				color[0], color[1], color[2], color[3],
+				normal.x, normal.y, normal.z
+				});
+			indices.push_back(static_cast<GLuint>(i));
+		}
+
+		indexCount_ = static_cast<GLsizei>(indices.size());
+
+		if (!vao_)
+		{
+			glGenVertexArrays(1, &vao_);
+			glGenBuffers(1, &vbo_);
+			glGenBuffers(1, &ebo_);
+		}
+
+		glBindVertexArray(vao_);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
+
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), nullptr);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 10 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), reinterpret_cast<void*>(7 * sizeof(float)));
+		glEnableVertexAttribArray(2);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_DYNAMIC_DRAW);
+		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
 
 	void MeshRenderer::Draw(const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection, float joinHeight, const glm::vec4& cutPlane, bool ghost, bool transparentPositive, bool hasParts, const LightingSettings& lighting, const ViewModels::AppearanceSettings& appearance) const
 	{
@@ -83,10 +134,10 @@ namespace IceCream::App::Views::Graphics
 		}
 
 		glUseProgram(shaderProgram_);
-        glUniform1i(glGetUniformLocation(shaderProgram_,"uHasColors"),hasColors_?1:0);
-        glUniform4fv(glGetUniformLocation(shaderProgram_, "uBodyColor"),1,glm::value_ptr(appearance.Color(ViewModels::ColorRole::Body)));
-        glUniform4fv(glGetUniformLocation(shaderProgram_, "uConeColor"),1,glm::value_ptr(appearance.Color(ViewModels::ColorRole::Cone)));
-        glUniform4fv(glGetUniformLocation(shaderProgram_, "uCapColor"),1,glm::value_ptr(appearance.Color(ViewModels::ColorRole::Cap)));
+		glUniform1i(glGetUniformLocation(shaderProgram_, "uHasColors"), hasColors_ ? 1 : 0);
+		glUniform4fv(glGetUniformLocation(shaderProgram_, "uBodyColor"), 1, glm::value_ptr(appearance.Color(ViewModels::ColorRole::Body)));
+		glUniform4fv(glGetUniformLocation(shaderProgram_, "uConeColor"), 1, glm::value_ptr(appearance.Color(ViewModels::ColorRole::Cone)));
+		glUniform4fv(glGetUniformLocation(shaderProgram_, "uCapColor"), 1, glm::value_ptr(appearance.Color(ViewModels::ColorRole::Cap)));
 		//свет
 		glUniform1i(glGetUniformLocation(shaderProgram_, "uLightType"), static_cast<int>(lighting.Type));
 
@@ -125,7 +176,7 @@ namespace IceCream::App::Views::Graphics
 		glUniform1i(glGetUniformLocation(shaderProgram_, "uGhostPass"), ghost ? 1 : 0);
 		glUniform1f(glGetUniformLocation(shaderProgram_, "uTransparentSide"), transparentPositive ? 1.0f : -1.0f);
 		glBindVertexArray(vao_);
-        glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		if (ghost)
 		{
@@ -148,7 +199,7 @@ namespace IceCream::App::Views::Graphics
 		}
 
 		glDisable(GL_BLEND);
-        glBindVertexArray(0);
+		glBindVertexArray(0);
 		glUseProgram(0);
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
@@ -177,12 +228,12 @@ namespace IceCream::App::Views::Graphics
 
 		if (shadowDepthTexture_ != 0)
 		{
-			glDeleteTextures(1,	&shadowDepthTexture_);
+			glDeleteTextures(1, &shadowDepthTexture_);
 		}
 
 		if (shadowFramebuffer_ != 0)
 		{
-			glDeleteFramebuffers(1,	&shadowFramebuffer_);
+			glDeleteFramebuffers(1, &shadowFramebuffer_);
 		}
 
 		if (shadowShaderProgram_ != 0)
@@ -265,7 +316,7 @@ namespace IceCream::App::Views::Graphics
 		glDisable(GL_POLYGON_OFFSET_FILL);
 
 		glDisable(GL_BLEND);
-        glBindVertexArray(0);
+		glBindVertexArray(0);
 		glUseProgram(0);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, oldFramebuffer);

@@ -21,7 +21,8 @@ namespace IceCream::App::Views
         // Совместимый профиль: шейдеры 3.3 для геометрии и GLUT-текст на панели.
         glutInitContextVersion(3, 3);
         glutInitContextProfile(GLUT_COMPATIBILITY_PROFILE);
-        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_STENCIL);
+        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_STENCIL | GLUT_MULTISAMPLE);
+        glutSetOption(GLUT_MULTISAMPLE, 4); // Запрашиваем 4-кратное сглаживание.
         glutInitWindowSize(windowWidth_, windowHeight_);
         glutCreateWindow("IceCream");
         glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
@@ -38,6 +39,11 @@ namespace IceCream::App::Views
         }
 
         glEnable(GL_DEPTH_TEST);
+        glEnable(GL_MULTISAMPLE);
+
+        GLint samples = 0;
+        glGetIntegerv(GL_SAMPLES, &samples);
+        std::cout << "MSAA: " << samples << " образцов на пиксель" << '\n';
 
         parametersPanel_.Initialize(viewModel_, [this] {
             UpdateLayout();

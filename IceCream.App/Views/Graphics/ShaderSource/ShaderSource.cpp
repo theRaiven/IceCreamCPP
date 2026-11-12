@@ -10,7 +10,9 @@ const char* VertexShaderSource = R"(
 layout(location = 0) in vec3 aPosition;
 
 layout(location = 1) in vec4 aColor;
+layout(location = 2) in vec3 aNormal;
 out vec4 PartColor;
+out vec3 SmoothNormal;
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProjection;
@@ -22,6 +24,7 @@ out vec3 ObjectPosition;
 void main()
 {
 	PartColor = aColor;
+    SmoothNormal = aNormal;
 	ObjectPosition = aPosition;
 	Height = aPosition.z;
 	vec4 position = uModel * vec4(aPosition, 1.0);
@@ -34,6 +37,7 @@ const char* FragmentShaderSource = R"(
 #version 330 core
 
 in vec4 PartColor;
+in vec3 SmoothNormal;
 uniform int uHasColors;
 in vec3 WorldPosition;
 in vec3 ObjectPosition;
@@ -114,11 +118,9 @@ void main()
 		discard;
 	}
 
-	// Поверхность и источник света задаём в координатах модели.
-	vec3 tangentX = dFdx(ObjectPosition);
-	vec3 tangentY = dFdy(ObjectPosition);
-	vec3 normalVector = cross(tangentX, tangentY);
-	vec3 normal = normalVector / max(length(normalVector), 0.000001);
+    // Интерполированная нормаль: освещение по Фонгу.
+    // На острых рёбрах MeshRenderer не смешивает нормали соседних граней.
+    vec3 normal = normalize(SmoothNormal);
 
 	vec3 lightDirection = vec3(0.0);
 	float lightFactor = 1.0;
