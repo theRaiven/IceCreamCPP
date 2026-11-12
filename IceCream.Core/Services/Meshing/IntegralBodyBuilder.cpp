@@ -6,8 +6,10 @@
 #include <cctype>
 #include <cmath>
 #include <functional>
+#include <iomanip>
 #include <limits>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -70,6 +72,8 @@ namespace IceCream::Core::Services
 
         part.Function = rename(source.Function);
         part.Base = rename(source.Base);
+        part.DependentLower = rename(source.DependentLower);
+        part.DependentUpper = rename(source.DependentUpper);
 
         for (int k = 0; k < 2; ++k)
         {
@@ -79,6 +83,59 @@ namespace IceCream::Core::Services
 
         part.Order = nextOrder;
         return part;
+    }
+
+    namespace
+    {
+        pair<double, double> EstimateGraphRange(const IntegralPart& part)
+        {
+            auto formula = Profiles::CompileSpatialExpression(part.Function, { 3, 1, 0.5, 1.2 });
+            auto order = part.FunctionOrder();
+            using Expression = function<double(double, double, double)>;
+            array<Expression, 2> lower, upper;
+
+            for (int d = 0; d < 2; ++d)
+            {
+                int axis = order[d];
+                lower[d] = Profiles::CompileSpatialExpression(part.Lower[axis], { 3, 1, 0.5, 1.2 });
+                upper[d] = Profiles::CompileSpatialExpression(part.Upper[axis], { 3, 1, 0.5, 1.2 });
+            }
+
+            auto eval = [](const Expression& f, const array<double, 3>& q)
+                {
+                    double value = f(q[0], q[1], q[2]);
+                    if (!isfinite(value)) throw invalid_argument("Функция или пределы принимают недопустимое значение.");
+                    return value;
+                };
+
+            constexpr int samples = 256;
+            double maximum = -numeric_limits<double>::infinity();
+            double minimum = numeric_limits<double>::infinity();
+
+            for (int i = 0; i <= samples; ++i)
+            {
+                array<double, 3> q{};
+                int a = order[0], b = order[1];
+                double firstLow = eval(lower[0], q);
+                double firstHigh = eval(upper[0], q);
+                if (firstHigh < firstLow) throw invalid_argument("Неверные границы области графика.");
+                q[a] = firstLow + (firstHigh - firstLow) * i / samples;
+
+                double secondLow = eval(lower[1], q);
+                double secondHigh = eval(upper[1], q);
+                if (secondHigh < secondLow) throw invalid_argument("Неверные границы области графика.");
+
+                for (int j = 0; j <= samples; ++j)
+                {
+                    q[b] = secondLow + (secondHigh - secondLow) * j / samples;
+                    double height = eval(formula, q);
+                    minimum = min(minimum, height);
+                    maximum = max(maximum, height);
+                }
+            }
+
+            return {minimum, maximum};
+        }
     }
 
     IntegralPart IntegralBodyBuilder::AsIntegral(const IntegralPart& source)
@@ -93,13 +150,53 @@ namespace IceCream::Core::Services
                 throw invalid_argument("Некорректно выбрана зависимая координата.");
             }
 
+            if (source.AutoUpper)
+            {
+                auto [minimum, maximum] = EstimateGraphRange(source);
+                double tolerance = 1e-12 * max({1.0, abs(minimum), abs(maximum)});
+
+                if (maximum - minimum <= tolerance)
+                {
+                    if (abs(maximum) <= tolerance)
+                    {
+                        throw invalid_argument("График совпадает с нулевой плоскостью: объём отсутствует.");
+                    }
+                    part.Base = "0";
+                    part.AboveFunction = false;
+                }
+                else
+                {
+                    ostringstream ceiling;
+                    ceiling << setprecision(17) << maximum;
+                    part.Base = ceiling.str();
+                    part.AboveFunction = true;
+                }
+            }
+
             part.Order = source.FunctionOrder();
             int axis = part.Order[2];
 
-            part.Lower[axis] = source.AboveFunction ? source.Function : source.Base;
-            part.Upper[axis] = source.AboveFunction ? source.Base : source.Function;
+            string lower = part.AboveFunction ? source.Function : part.Base;
+            string upper = part.AboveFunction ? part.Base : source.Function;
+
+            if (!source.DependentLower.empty())
+            {
+                lower = "max((" + lower + "),(" + source.DependentLower + "))";
+            }
+            if (!source.DependentUpper.empty())
+            {
+                upper = "min((" + upper + "),(" + source.DependentUpper + "))";
+            }
+            if (!source.DependentLower.empty() || !source.DependentUpper.empty())
+            {
+                upper = "max((" + lower + "),(" + upper + "))";
+            }
+
+            part.Lower[axis] = lower;
+            part.Upper[axis] = upper;
             part.Function = "1";
             part.Definition = PartDefinition::Integral;
+            part.AutoUpper = false;
 
             if (part.Coordinates == CoordinateSystem::Polar)
             {
@@ -683,6 +780,7 @@ namespace IceCream::Core::Services
         cone.Function = "3*sqrt(x^2+y^2)";
         cone.Base = "3";
         cone.AboveFunction = true;
+        cone.AutoUpper = true;
         cone.Lower = { {"-1", "-sqrt(max(0,1-x^2))", "0"} };
         cone.Upper = { {"1", "sqrt(max(0,1-x^2))", "3"} };
         cone.Color = { {0.76f, 0.5f, 0.3f, 1.0f} };
@@ -690,6 +788,7 @@ namespace IceCream::Core::Services
         IntegralPart ice = cone;
         ice.Name = "Мороженое";
         ice.AboveFunction = false;
+        ice.AutoUpper = false;
         ice.Function = "3+sqrt(max(0,1-x^2-y^2))";
         ice.Color = { {0.6f, 0.85f, 0.35f, 1.0f} };
 

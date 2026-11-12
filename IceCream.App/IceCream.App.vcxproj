@@ -49,10 +49,11 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VcpkgRoot)installed\$(VcpkgTriplet)\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>comctl32.lib;opengl32.lib;glew32d.lib;freeglutd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <PostBuildEvent>
       <Command>cmd /c copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\debug\bin\glew32d.dll" "$(OutDir)" &amp;&amp; copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\debug\bin\freeglutd.dll" "$(OutDir)"</Command>
@@ -60,10 +61,11 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VcpkgRoot)installed\$(VcpkgTriplet)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>comctl32.lib;opengl32.lib;glew32.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
     </Link>
     <PostBuildEvent>
       <Command>cmd /c copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\bin\glew32.dll" "$(OutDir)" &amp;&amp; copy /Y "$(VcpkgRoot)installed\$(VcpkgTriplet)\bin\freeglut.dll" "$(OutDir)"</Command>

@@ -45,6 +45,11 @@ void ParametersPanel::StoreDrafts()
         int mode = static_cast<int>(SendMessageW(Control(id + 14), CB_GETCURSEL, 0, 0));
         bool cart = p.Coordinates == CoordinateSystem::Cartesian;
         p.Definition = mode == (cart ? 3 : 1) ? PartDefinition::Integral : PartDefinition::Function;
+        if (p.Definition == PartDefinition::Function)
+        {
+            int fill = static_cast<int>(SendMessageW(Control(id + 15), CB_GETCURSEL, 0, 0));
+            p.AutoUpper = fill == 1;
+        }
         p.SetFunction(formula);
         p.DependentAxis = !cart || mode == 0 ? 2 : mode == 1 ? 0 : 1;
         if (p.Definition == PartDefinition::Function)
@@ -59,8 +64,16 @@ void ParametersPanel::StoreDrafts()
         }
         for (int k = 0; k < 3; ++k)
         {
-            p.Lower[k] = Read(Control(id + 4 + 2 * k));
-            p.Upper[k] = Read(Control(id + 5 + 2 * k));
+            if (p.Definition == PartDefinition::Function && k == p.DependentAxis)
+            {
+                p.DependentLower = Read(Control(id + 4 + 2 * k));
+                p.DependentUpper = Read(Control(id + 5 + 2 * k));
+            }
+            else
+            {
+                p.Lower[k] = Read(Control(id + 4 + 2 * k));
+                p.Upper[k] = Read(Control(id + 5 + 2 * k));
+            }
         }
     }
 }
@@ -73,6 +86,10 @@ void ParametersPanel::LoadDrafts()
         int id = 1000 + static_cast<int>(i) * 32;
         Write(Control(id), p.Name);
         Write(Control(id + 1), p.Function);
+        SendMessageW(Control(id + 15), CB_RESETCONTENT, 0, 0);
+        for (auto name : { L"Объём под графиком (до основания)", L"Автообъём (плоскость — до нуля)" })
+            SendMessageW(Control(id + 15), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(name));
+        SendMessageW(Control(id + 15), CB_SETCURSEL, p.AutoUpper ? 1 : 0, 0);
         SendMessageW(Control(id + 2), CB_SETCURSEL, static_cast<int>(p.Coordinates), 0);
         SendMessageW(Control(id + 14), CB_RESETCONTENT, 0, 0);
         if (p.Coordinates == CoordinateSystem::Cartesian)
@@ -117,8 +134,9 @@ void ParametersPanel::LoadDrafts()
         SendMessageW(Control(id + 3), CB_SETCURSEL, selected, 0);
         for (int k = 0; k < 3; ++k)
         {
-            Write(Control(id + 4 + 2 * k), p.Lower[k]);
-            Write(Control(id + 5 + 2 * k), p.Upper[k]);
+            bool dependent = p.Definition == PartDefinition::Function && k == p.DependentAxis;
+            Write(Control(id + 4 + 2 * k), dependent ? p.DependentLower : p.Lower[k]);
+            Write(Control(id + 5 + 2 * k), dependent ? p.DependentUpper : p.Upper[k]);
         }
         UpdateIntegralPreview(i);
     }
@@ -134,8 +152,17 @@ void ParametersPanel::UpdateIntegralPreview(size_t part)
     if (p.Definition == PartDefinition::Function)
     {
         std::string preview = "Пределы задают область двух независимых координат.";
-        if (p.Base == "0")
-            preview += std::string("\nОбъём — между графиком и ") + names[p.DependentAxis] + "=0.";
+        if (p.AutoUpper)
+            preview += "\nЕсли график постоянный, объём до нуля; иначе над графиком до максимума.";
+        else
+            preview += std::string("\nОбъём между графиком и ") + names[p.DependentAxis] + "=" + p.Base + ".";
+        preview += "\n";
+        preview += names[p.DependentAxis];
+        preview += " от ";
+        preview += p.DependentLower.empty() ? "без ограничения" : p.DependentLower;
+        preview += ", до ";
+        preview += p.DependentUpper.empty() ? "без ограничения" : p.DependentUpper;
+        preview += ".";
         Write(Control(id + 12), preview);
         return;
     }
@@ -203,6 +230,12 @@ void ParametersPanel::IntegralCommand(int id, int notification)
         Layout();
         return;
     }
+    if (field == 15 && notification == CBN_SELCHANGE)
+    {
+        StoreDrafts();
+        UpdateIntegralPreview(part);
+        return;
+    }
     if ((field == 2 || field == 3 || field == 14) && notification == CBN_SELCHANGE)
     {
         const auto before = drafts_[part];
@@ -217,6 +250,9 @@ void ParametersPanel::IntegralCommand(int id, int notification)
                 definition.Function = p.Function;
                 definition.Base = p.Base;
                 definition.AboveFunction = p.AboveFunction;
+                definition.AutoUpper = p.AutoUpper;
+                definition.DependentLower = p.DependentLower;
+                definition.DependentUpper = p.DependentUpper;
                 p = Core::Services::IntegralBodyBuilder::AsIntegral(definition);
             }
             else if (before.Definition == PartDefinition::Function && p.Definition == PartDefinition::Function &&
@@ -227,6 +263,9 @@ void ParametersPanel::IntegralCommand(int id, int notification)
                 p.Function = p.Upper[p.DependentAxis];
                 p.Base = p.Lower[p.DependentAxis];
                 p.AboveFunction = false;
+                p.AutoUpper = false;
+                p.DependentLower.clear();
+                p.DependentUpper.clear();
             }
         }
         if (field == 2)

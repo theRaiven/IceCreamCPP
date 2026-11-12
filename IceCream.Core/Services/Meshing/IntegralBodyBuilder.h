@@ -29,6 +29,9 @@ struct IntegralPart
     int DependentAxis = 2;
     std::string Base = "0";
     bool AboveFunction = false;
+    bool AutoUpper = false;
+    std::string DependentLower;
+    std::string DependentUpper;
     // Editing a graph starts a new definition; do not inherit a preset's hidden cap.
     void SetFunction(std::string formula)
     {
@@ -37,7 +40,7 @@ struct IntegralPart
             for (unsigned char c : input) if (!std::isspace(c)) result += static_cast<char>(c);
             return result;
         };
-        if (Definition == PartDefinition::Function && compact(formula) != compact(Function))
+        if (Definition == PartDefinition::Function && !AutoUpper && compact(formula) != compact(Function))
         {
             Base = "0";
             AboveFunction = false;
@@ -49,7 +52,6 @@ struct IntegralPart
         int axis = Coordinates == CoordinateSystem::Cartesian ? DependentAxis : 2;
         return {{(axis + 1) % 3, (axis + 2) % 3, axis}};
     }
-    // Order is outermost to innermost. Coordinates are x/y/z or r/phi/z.
     std::array<int, 3> Order{{0, 1, 2}};
     std::array<std::string, 3> Lower{{"0", "0", "0"}};
     std::array<std::string, 3> Upper{{"1", "1", "1"}};

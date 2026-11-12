@@ -135,6 +135,11 @@ namespace IceCream::App::Views
                         place(id + 1, 60, y, right - 108);
                         place(id + 10, right - 38, y, 38);
                         y += 40;
+                        if (graph)
+                        {
+                            place(id + 15, 20, y, right - 20, 120);
+                            y += 42;
+                        }
                         if (!graph)
                         {
                             place(id + 3, 20, y, right - 20, 160);
@@ -151,6 +156,14 @@ namespace IceCream::App::Views
                         for (int d = 0; d < dimensions; ++d)
                         {
                             int k = order[d];
+                            text(p.Coordinates == Core::Services::CoordinateSystem::Cartesian ? cart[k] : radial[k], 20, y, 40);
+                            place(id + 4 + 2 * k, 65, y, (right - 80) / 2);
+                            place(id + 5 + 2 * k, 75 + (right - 80) / 2, y, (right - 80) / 2);
+                            y += 38;
+                        }
+                        if (graph)
+                        {
+                            int k = p.DependentAxis;
                             text(p.Coordinates == Core::Services::CoordinateSystem::Cartesian ? cart[k] : radial[k], 20, y, 40);
                             place(id + 4 + 2 * k, 65, y, (right - 80) / 2);
                             place(id + 5 + 2 * k, 75 + (right - 80) / 2, y, (right - 80) / 2);

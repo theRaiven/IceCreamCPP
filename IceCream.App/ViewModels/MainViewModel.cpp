@@ -69,8 +69,10 @@ namespace IceCream::App::ViewModels
 		};
 		PreparedSurface PrepareSurface(TriangleMesh mesh, const std::string& constraints,
 			std::optional<double> volume = std::nullopt, std::vector<std::array<float, 4>> colors = {},
-			glm::dmat3 rotation = glm::dmat3(1))
+			glm::dmat3 rotation = glm::dmat3(1), bool alreadyClipped = false,
+			std::optional<std::pair<Point3D, Point3D>> guideBounds = std::nullopt)
 		{
+			if (mesh.TriangleCount() == 0) throw std::invalid_argument("Поверхность пуста. Проверьте формулу, границы и ограничения.");
 			auto text = NormalizeConstraints(constraints);
 			std::vector<ConstraintSurface> guides;
 			if (!text.empty())
@@ -84,13 +86,15 @@ namespace IceCream::App::ViewModels
 
 				// Cache the guides once per build. Use the original, uncut body's bounds,
 				// so the display region does not collapse after clipping.
-				auto low = mesh.Vertices().front(), high = low;
-				for (const auto& p : mesh.Vertices())
-				{
-					low.X = std::min(low.X, p.X); high.X = std::max(high.X, p.X);
-					low.Y = std::min(low.Y, p.Y); high.Y = std::max(high.Y, p.Y);
-					low.Z = std::min(low.Z, p.Z); high.Z = std::max(high.Z, p.Z);
-				}
+				auto low = guideBounds ? guideBounds->first : mesh.Vertices().front();
+				auto high = guideBounds ? guideBounds->second : low;
+				if (!guideBounds)
+					for (const auto& p : mesh.Vertices())
+					{
+						low.X = std::min(low.X, p.X); high.X = std::max(high.X, p.X);
+						low.Y = std::min(low.Y, p.Y); high.Y = std::max(high.Y, p.Y);
+						low.Z = std::min(low.Z, p.Z); high.Z = std::max(high.Z, p.Z);
+					}
 				double span = std::max({ high.X - low.X, high.Y - low.Y, high.Z - low.Z, .1 });
 				auto padding = Vector3D{ span * .2, span * .2, span * .2 };
 				low = low - padding; high = high + padding;
@@ -117,15 +121,18 @@ namespace IceCream::App::ViewModels
 					catch (const std::domain_error&) { guide.Undefined = true; }
 					guides.push_back(std::move(guide));
 				}
-				std::vector<size_t> sources;
-				mesh = MeshClipper().Clip(mesh, Core::Inequalities::InequalityRegion(std::move(inequalities)), {},
-					colors.empty() ? nullptr : &sources);
-				if (!colors.empty())
+				if (!alreadyClipped)
 				{
-					std::vector<std::array<float, 4>> clippedColors;
-					clippedColors.reserve(sources.size());
-					for (size_t source : sources) clippedColors.push_back(colors.at(source));
-					colors = std::move(clippedColors);
+					std::vector<size_t> sources;
+					mesh = MeshClipper().Clip(mesh, Core::Inequalities::InequalityRegion(std::move(inequalities)), {},
+						colors.empty() ? nullptr : &sources);
+					if (!colors.empty())
+					{
+						std::vector<std::array<float, 4>> clippedColors;
+						clippedColors.reserve(sources.size());
+						for (size_t source : sources) clippedColors.push_back(colors.at(source));
+						colors = std::move(clippedColors);
+					}
 				}
 				volume.reset(); // The original integral no longer describes the clipped mesh.
 			}
@@ -339,7 +346,52 @@ namespace IceCream::App::ViewModels
 			throw std::invalid_argument("Поверхность пуста. Проверьте уравнение и границы построения.");
 		}
 
-		auto prepared = PrepareSurface(std::move(mesh), constraints);
+		// A clipped closed implicit surface must include the new cut face.
+		// Intersect the solid F<=0 with all constraints before triangulating,
+		// instead of deleting old surface triangles and leaving an open hole.
+		bool alreadyClipped = false;
+		const std::string normalized = NormalizeConstraints(constraints);
+		std::optional<std::pair<Point3D, Point3D>> guideBounds;
+		if (!normalized.empty())
+		{
+			auto low = mesh.Vertices().front(), high = low;
+			for (const auto& p : mesh.Vertices())
+			{
+				low.X = std::min(low.X, p.X); high.X = std::max(high.X, p.X);
+				low.Y = std::min(low.Y, p.Y); high.Y = std::max(high.Y, p.Y);
+				low.Z = std::min(low.Z, p.Z); high.Z = std::max(high.Z, p.Z);
+			}
+			guideBounds = std::make_pair(low, high);
+		}
+		if (!normalized.empty() && VolumeCalculator().TryCalculate(mesh))
+		{
+			// The sign of an implicit equation is arbitrary (F=0 and -F=0).
+			// For a closed surface, the box corners must lie on the exterior side.
+			const double corner = expression(min.X, min.Y, min.Z);
+			bool exteriorKnown = std::isfinite(corner) && corner != 0.0;
+			for (double x : {min.X, max.X})
+				for (double y : {min.Y, max.Y})
+					for (double z : {min.Z, max.Z})
+					{
+						double value = expression(x, y, z);
+						if (!std::isfinite(value) || (value > 0.0) != (corner > 0.0)) exteriorKnown = false;
+					}
+
+			if (exteriorKnown)
+			{
+				auto region = Core::Inequalities::InequalityRegion(Core::Inequalities::InequalityParser::Parse(normalized));
+				const double sign = corner < 0.0 ? -1.0 : 1.0;
+				mesh = ImplicitSurfaceBuilder().Build([&](double x, double y, double z)
+					{
+						return std::max(sign * expression(x, y, z), region.Evaluate(x, y, z));
+					}, min, max, cellsX, cellsY, cellsZ);
+				if (mesh.TriangleCount() == 0)
+					throw std::invalid_argument("Поверхность пуста. Проверьте уравнение, границы и ограничения.");
+				alreadyClipped = true;
+			}
+		}
+
+		auto prepared = PrepareSurface(std::move(mesh), constraints, std::nullopt, {}, glm::dmat3(1), alreadyClipped, guideBounds);
 		IceCreamBody body(parameters_, std::move(prepared.Mesh));
 
 		auto nextPlane = CreateSectionPlane(false);

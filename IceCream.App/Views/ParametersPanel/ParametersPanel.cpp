@@ -144,6 +144,7 @@ namespace IceCream::App::Views
             Make(L"BUTTON", L"×", id + 11, WS_TABSTOP);
             Make(L"STATIC", L"", id + 12, SS_LEFT);
             Make(L"COMBOBOX", L"", id + 14, WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL);
+            Make(L"COMBOBOX", L"", id + 15, WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL);
         }
         drafts_ = Core::Services::IntegralBodyBuilder::DefaultParts();
         model_->ApplyIntegralParts(drafts_);
