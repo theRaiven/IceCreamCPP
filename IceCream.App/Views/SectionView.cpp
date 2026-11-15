@@ -54,13 +54,13 @@ namespace IceCream::App::Views
 		lineRenderer_.Initialize();
 	}
 
-	void SectionView::SetViewport(int x, int y, int width, int height)
+	void SectionView::SetViewport(int x, int y, int width, int height, int dpi)
 	{
 		x_ = x;
 		y_ = y;
-		width_ = std::max(width, 1);
-		height_ = std::max(height, 1);
-        camera_.SetViewport(width_, height_);
+		width_ = width;
+		height_ = height;
+        dpi_ = dpi;
 	}
 
     bool SectionView::Contains(int x, int y, int windowHeight) const
@@ -80,21 +80,50 @@ namespace IceCream::App::Views
     }
     void SectionView::OnWheel(int direction, int x, int y, int windowHeight)
     {
-        camera_.ZoomAt(direction, x-x_, y-(windowHeight-y_-height_));
+        const int localY = y - (windowHeight - y_ - plotHeight_);
+        camera_.ZoomAt(direction, x - x_, std::clamp(localY, 0, plotHeight_));
     }
 
-	void SectionView::Render(const ViewModels::MainViewModel& viewModel) const
+    std::string SectionView::MeasurementText(const ViewModels::MainViewModel& viewModel, bool compact)
+    {
+        if (!viewModel.HasSectionArea())
+            return compact ? "Площадь недоступна" : "Площадь недоступна: открытый контур";
+
+        char status[128];
+        std::snprintf(status, sizeof(status), "Площадь: %.5g", viewModel.SectionArea());
+        return status;
+    }
+
+	void SectionView::Render(const ViewModels::MainViewModel& viewModel, bool showMeasurement) const
 	{
+        if (width_ == 0 || height_ == 0)
+            return;
 		const auto& appearance = viewModel.Appearance();
-        text_.SetSize(appearance.CoordinateSize);
-        hints_.SetSize(appearance.HintSize);
-        glViewport(x_, y_, width_, height_);
+        text_.SetSize(MulDiv(appearance.CoordinateSize, dpi_, 96));
+        hints_.SetSize(MulDiv(appearance.HintSize, dpi_, 96));
+        Graphics::OverlayHeader header(width_, height_, dpi_);
+        const glm::vec3 textColor(appearance.Color(ColorRole::Text));
+        if (showMeasurement)
+        {
+            measurements_.SetSize(MulDiv(appearance.TextSize + 2, dpi_, 96));
+            header.Add(measurements_, textColor, MeasurementText(viewModel).c_str(), 2);
+        }
+        else if (!viewModel.HasSectionArea())
+            header.Add(hints_, textColor, "Открытый контур", 2);
+        if (viewModel.Section().IsEmpty())
+            header.Add(hints_, textColor, "Плоскость не пересекает фигуру", 2);
+        if (appearance.ShowHints)
+            header.Add(hints_, textColor, "Тянуть: переместить · колесо: масштаб · C/СКМ: вписать", 2);
+        plotHeight_ = height_ - header.Height();
+        camera_.SetViewport(width_, plotHeight_);
+        glViewport(x_, y_, width_, plotHeight_);
 		glEnable(GL_SCISSOR_TEST);
 		glScissor(x_, y_, width_, height_);
 		const auto background = appearance.Color(ColorRole::Section);
         glClearColor(background.r, background.g, background.b, 1);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glDisable(GL_DEPTH_TEST);
+        glScissor(x_, y_, width_, plotHeight_);
 
 		Graphics::SectionBounds content{std::numeric_limits<double>::max(), -std::numeric_limits<double>::max(),
             std::numeric_limits<double>::max(), -std::numeric_limits<double>::max()};
@@ -201,9 +230,14 @@ namespace IceCream::App::Views
 		glLineWidth(1);
 		char number[24];
 
-        float labelsY = static_cast<float>(std::clamp(-minY/(maxY-minY)*height_+4, 12.0, std::max(12.0, static_cast<double>(height_-112))));
-        float labelsX = static_cast<float>(std::clamp(-minX/(maxX-minX)*width_+4, 8.0, std::max(8.0, static_cast<double>(width_-75))));
-        double previousLabelEnd = -1;
+        const int margin = MulDiv(6, dpi_, 96);
+        const int rowHeight = text_.Height() + margin;
+        const float labelsY = static_cast<float>(text_.Height() - text_.Ascent() + margin);
+        const float labelsX = static_cast<float>(margin);
+        const int uX = width_ - text_.Measure("u") - margin;
+        double previousLabelEnd = margin;
+        const double highestCoordinate = std::max({std::abs(minX), std::abs(maxX), std::abs(minY), std::abs(maxY)});
+        const int precision = std::clamp(static_cast<int>(std::ceil(std::log10(highestCoordinate / step + 1))) + 2, 4, 15);
 		for (double x : ticksX)
 		{
 			if (std::abs(x) < step * .01f)
@@ -211,16 +245,18 @@ namespace IceCream::App::Views
 				continue;
 			}
 
-			std::snprintf(number, sizeof(number), "%.15g", x);
-            double pixel = (x-minX)/(maxX-minX)*width_+3;
-            double end = pixel + std::char_traits<char>::length(number)*appearance.CoordinateSize*.65;
-            if (pixel >= previousLabelEnd+8 && end < width_-22)
+			std::snprintf(number, sizeof(number), "%.*g", precision, x);
+            const int textWidth = text_.Measure(number);
+            const double pixel = (x - minX) / (maxX - minX) * width_ - textWidth * .5;
+            const double end = pixel + textWidth;
+            if (pixel >= previousLabelEnd + margin && end < uX - margin)
             {
-                text_.Screen(static_cast<float>(pixel), labelsY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
+                text_.Screen(static_cast<float>(pixel), labelsY, width_, plotHeight_, textColor, number);
                 previousLabelEnd = end;
             }
 		}
 
+        float previousLabelY = labelsY;
 		for (double y : ticksY)
 		{
 			if (std::abs(y) < step * .01f)
@@ -228,26 +264,24 @@ namespace IceCream::App::Views
 				continue;
 			}
 
-			std::snprintf(number, sizeof(number), "%.15g", y);
-			float pixelY = static_cast<float>((y-minY)/(maxY-minY)*height_+3);
+			std::snprintf(number, sizeof(number), "%.*g", precision, y);
+			const float pixelY = static_cast<float>((y - minY) / (maxY - minY) * plotHeight_ - text_.Ascent() / 2);
 
-			if (pixelY < height_ - 82 && pixelY > 8)
+			if (pixelY >= previousLabelY + rowHeight && pixelY < plotHeight_ - text_.Ascent() - rowHeight &&
+                text_.Measure(number) + 2 * margin < width_)
 			{
-				text_.Screen(labelsX, pixelY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), number);
+				text_.Screen(labelsX, pixelY, width_, plotHeight_, textColor, number);
+                previousLabelY = pixelY;
 			}
 		}
 
-		text_.Screen(static_cast<float>(width_-22), labelsY, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "u");
-		text_.Screen(labelsX, static_cast<float>(height_-100), width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "v");
-        char status[128];
-        if (viewModel.HasSectionArea())
-            std::snprintf(status,sizeof(status),"Площадь: %.5g",viewModel.SectionArea());
-        else
-            std::snprintf(status,sizeof(status),"Площадь недоступна: открытый контур");
-        text_.Screen(16,height_-32,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),status);
-        if (viewModel.Section().IsEmpty()) hints_.Screen(16,height_-62,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"Плоскость не пересекает фигуру");
-        if (appearance.ShowHints) hints_.Screen(16,height_-88,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"Тянуть: переместить · колесо: масштаб · C/СКМ: вписать");
-
+        if (plotHeight_ >= 2 * rowHeight)
+        {
+            text_.Screen(static_cast<float>(uX), labelsY, width_, plotHeight_, textColor, "u");
+            text_.Screen(labelsX, static_cast<float>(plotHeight_ - text_.Ascent() - margin), width_, plotHeight_, textColor, "v");
+        }
+        glScissor(x_, y_, width_, height_);
+        header.Draw(x_, y_, height_);
 		glDisable(GL_SCISSOR_TEST);
 		glEnable(GL_DEPTH_TEST);
 	}
@@ -256,6 +290,7 @@ namespace IceCream::App::Views
 	{
 		text_.Destroy();
         hints_.Destroy();
+        measurements_.Destroy();
 		lineRenderer_.Destroy();
 	}
 }

@@ -12,6 +12,26 @@
 
 namespace IceCream::App::Views
 {
+    namespace
+    {
+        RECT WorkArea(HMONITOR monitor)
+        {
+            MONITORINFO info{};
+            info.cbSize = sizeof(info);
+            GetMonitorInfoW(monitor, &info);
+            return info.rcWork;
+        }
+
+        void PlaceWindow(HWND window, const RECT& bounds, const RECT& work)
+        {
+            const int width = std::min(bounds.right - bounds.left, work.right - work.left);
+            const int height = std::min(bounds.bottom - bounds.top, work.bottom - work.top);
+            const int x = std::clamp<int>(bounds.left, work.left, work.right - width);
+            const int y = std::clamp<int>(bounds.top, work.top, work.bottom - height);
+            SetWindowPos(window, nullptr, x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+    }
+
     int MainWindow::Run(int argc, char** argv)
     {
         instance_ = this;
@@ -23,6 +43,16 @@ namespace IceCream::App::Views
         glutInitContextProfile(GLUT_COMPATIBILITY_PROFILE);
         glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_STENCIL | GLUT_MULTISAMPLE);
         glutSetOption(GLUT_MULTISAMPLE, 4); // Запрашиваем 4-кратное сглаживание.
+        const RECT work = WorkArea(MonitorFromPoint({0, 0}, MONITOR_DEFAULTTOPRIMARY));
+        const UINT initialDpi = GetDpiForSystem();
+        RECT frame{};
+        AdjustWindowRectExForDpi(&frame, WS_OVERLAPPEDWINDOW, FALSE, 0, initialDpi);
+        windowWidth_ = std::min(MulDiv(windowWidth_, initialDpi, 96),
+            std::max<int>(1, (work.right - work.left) - (frame.right - frame.left)));
+        windowHeight_ = std::min(MulDiv(windowHeight_, initialDpi, 96),
+            std::max<int>(1, (work.bottom - work.top) - (frame.bottom - frame.top)));
+        glutInitWindowPosition(work.left + (work.right - work.left - windowWidth_) / 2,
+            work.top + (work.bottom - work.top - windowHeight_) / 2);
         glutInitWindowSize(windowWidth_, windowHeight_);
         glutCreateWindow("IceCream");
         glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
@@ -40,6 +70,16 @@ namespace IceCream::App::Views
 
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_MULTISAMPLE);
+        HWND window = WindowFromDC(wglGetCurrentDC());
+        RECT bounds{};
+        GetWindowRect(window, &bounds);
+        PlaceWindow(window, bounds, work);
+        dpi_ = GetDpiForWindow(window);
+        RECT client{};
+        GetClientRect(window, &client);
+        windowWidth_ = client.right;
+        windowHeight_ = client.bottom;
+        SetWindowSubclass(window, WindowProcedure, 1, reinterpret_cast<DWORD_PTR>(this));
 
         GLint samples = 0;
         glGetIntegerv(GL_SAMPLES, &samples);
@@ -71,17 +111,56 @@ namespace IceCream::App::Views
 
     void MainWindow::UpdateLayout()
     {
-        const int PanelWidth = parametersPanel_.OccupiedWidth();
-        if (layoutWidth_ == windowWidth_ && layoutHeight_ == windowHeight_ && layoutPanelWidth_ == PanelWidth)
+        const bool panelOpen = parametersPanel_.IsOpen();
+        if (!layoutDirty_ && layoutPanelOpen_ == panelOpen)
             return;
-        layoutWidth_ = windowWidth_;
-        layoutHeight_ = windowHeight_;
-        layoutPanelWidth_ = PanelWidth;
-        const int availableWidth = std::max(windowWidth_ - PanelWidth, 2);
-        const int splitX = availableWidth * 58 / 100;
-        sceneView_.SetViewport(PanelWidth, 0, splitX, windowHeight_);
-        sectionView_.SetViewport(PanelWidth + splitX, 0, availableWidth - splitX, windowHeight_);
-        parametersPanel_.SetViewport(0, 0, 440, windowHeight_);
+        layoutDirty_ = false;
+        layoutPanelOpen_ = panelOpen;
+        const auto layout = WindowLayout::Calculate(windowWidth_, windowHeight_, dpi_, panelOpen);
+        readouts_ = layout.Readouts;
+        const auto& scene = layout.Scene;
+        const auto& section = layout.Section;
+        sceneView_.SetViewport(scene.X, windowHeight_ - scene.Y - scene.Height, scene.Width, scene.Height, dpi_);
+        sectionView_.SetViewport(section.X, windowHeight_ - section.Y - section.Height, section.Width, section.Height, dpi_);
+        const auto& panel = layout.Panel;
+        parametersPanel_.SetViewport(panel.Width, panel.Height, layout.TabsWidth, dpi_);
+    }
+
+    LRESULT CALLBACK MainWindow::WindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam,
+        UINT_PTR subclass, DWORD_PTR data)
+    {
+        auto& self = *reinterpret_cast<MainWindow*>(data);
+        if (message == WM_GETMINMAXINFO)
+        {
+            const auto result = DefSubclassProc(window, message, wParam, lParam);
+            const UINT dpi = GetDpiForWindow(window);
+            RECT minimum{0, 0, MulDiv(WindowLayout::MinimumWidth, dpi, 96), MulDiv(WindowLayout::MinimumHeight, dpi, 96)};
+            AdjustWindowRectExForDpi(&minimum, static_cast<DWORD>(GetWindowLongPtrW(window, GWL_STYLE)), FALSE,
+                static_cast<DWORD>(GetWindowLongPtrW(window, GWL_EXSTYLE)), dpi);
+            const RECT work = WorkArea(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST));
+            auto& info = *reinterpret_cast<MINMAXINFO*>(lParam);
+            info.ptMinTrackSize.x = std::min(minimum.right - minimum.left, work.right - work.left);
+            info.ptMinTrackSize.y = std::min(minimum.bottom - minimum.top, work.bottom - work.top);
+            return result;
+        }
+        if (message == WM_DPICHANGED)
+        {
+            self.dpi_ = HIWORD(wParam);
+            const RECT bounds = *reinterpret_cast<const RECT*>(lParam);
+            if (IsZoomed(window))
+                SetWindowPos(window, nullptr, bounds.left, bounds.top, bounds.right - bounds.left,
+                    bounds.bottom - bounds.top, SWP_NOZORDER | SWP_NOACTIVATE);
+            else
+                PlaceWindow(window, bounds, WorkArea(MonitorFromRect(&bounds, MONITOR_DEFAULTTONEAREST)));
+            RECT client{};
+            GetClientRect(window, &client);
+            self.layoutDirty_ = true;
+            Reshape(client.right, client.bottom);
+            return 0;
+        }
+        if (message == WM_NCDESTROY)
+            RemoveWindowSubclass(window, WindowProcedure, subclass);
+        return DefSubclassProc(window, message, wParam, lParam);
     }
 
     void MainWindow::ReloadMesh()
@@ -103,27 +182,60 @@ namespace IceCream::App::Views
 
     void MainWindow::Display()
     {
-        glClearColor(0.10f, 0.11f, 0.14f, 1.0f);
+        const auto& background = instance_->viewModel_.Appearance().Color(ViewModels::ColorRole::Panel);
+        glClearColor(background.r, background.g, background.b, 1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        instance_->sceneView_.Render(instance_->viewModel_);
-        instance_->sectionView_.Render(instance_->viewModel_);
+        const bool showMeasurement = instance_->readouts_.Width == 0;
+        instance_->sceneView_.Render(instance_->viewModel_, showMeasurement);
+        instance_->sectionView_.Render(instance_->viewModel_, showMeasurement);
+        instance_->DrawReadouts();
         instance_->parametersPanel_.Render(instance_->viewModel_);
 
         glutSwapBuffers();
     }
 
+    void MainWindow::DrawReadouts() const
+    {
+        if (readouts_.Width == 0 || readouts_.Height == 0)
+            return;
+        const auto& appearance = viewModel_.Appearance();
+        const auto textColor = glm::vec3(appearance.Color(ViewModels::ColorRole::Text));
+        const int fontSize = MulDiv(appearance.TextSize + 2, dpi_, USER_DEFAULT_SCREEN_DPI);
+        const int inset = MulDiv(16, dpi_, USER_DEFAULT_SCREEN_DPI);
+        const int firstWidth = readouts_.Width / 2;
+        auto draw = [&](int x, int width, const std::string& label)
+        {
+            toolbarText_.SetSize(fontSize);
+            const int available = width - 2 * inset;
+            const int measured = toolbarText_.Measure(label.c_str());
+            if (measured > available)
+                toolbarText_.SetSize(std::max(MulDiv(12, dpi_, USER_DEFAULT_SCREEN_DPI), MulDiv(fontSize, available, measured)));
+            const int baseline = (readouts_.Height - toolbarText_.Height()) / 2 + toolbarText_.Height() - toolbarText_.Ascent();
+            const auto line = toolbarText_.Wrap(label.c_str(), available, 1);
+            if (!line.empty())
+            {
+                glViewport(x, windowHeight_ - readouts_.Height, width, readouts_.Height);
+                toolbarText_.Screen(static_cast<float>(inset), static_cast<float>(baseline), width, readouts_.Height,
+                    textColor, line.front());
+            }
+        };
+        glDisable(GL_DEPTH_TEST);
+        draw(readouts_.X, firstWidth, SceneView::MeasurementText(viewModel_, true));
+        draw(readouts_.X + firstWidth, readouts_.Width - firstWidth, SectionView::MeasurementText(viewModel_, true));
+        glEnable(GL_DEPTH_TEST);
+    }
+
     void MainWindow::Reshape(int width, int height)
     {
-        if (width < 1200 || height < 800)
-        {
-            glutReshapeWindow(std::max(width, 1200), std::max(height, 800));
-
+        if (width <= 0 || height <= 0)
             return;
+        if (instance_->windowWidth_ != width || instance_->windowHeight_ != height)
+        {
+            instance_->windowWidth_ = width;
+            instance_->windowHeight_ = height;
+            instance_->layoutDirty_ = true;
         }
-
-        instance_->windowWidth_ = std::max(width, 1);
-        instance_->windowHeight_ = std::max(height, 1);
         instance_->UpdateLayout();
         glutPostRedisplay();
     }
@@ -169,17 +281,7 @@ namespace IceCream::App::Views
             return;
         }
 
-        const bool panelHandled =
-            instance_->parametersPanel_.Mouse(state == GLUT_DOWN, x, y, instance_->windowHeight_, instance_->viewModel_);
-        instance_->ReloadMeshIfChanged();
         glutPostRedisplay();
-
-        if (panelHandled)
-        {
-            instance_->sceneView_.OnMouseUp();
-
-            return;
-        }
 
         if (state == GLUT_DOWN && instance_->sceneView_.Contains(x, y, instance_->windowHeight_))
         {
@@ -193,11 +295,8 @@ namespace IceCream::App::Views
 
     void MainWindow::MouseMotion(int x, int y)
     {
-        if (!instance_->parametersPanel_.Motion(x, instance_->viewModel_))
-        {
-            instance_->sceneView_.OnMouseMove(x, y);
-            instance_->sectionView_.OnMouseMove(x, y);
-        }
+        instance_->sceneView_.OnMouseMove(x, y);
+        instance_->sectionView_.OnMouseMove(x, y);
 
         glutPostRedisplay();
     }
@@ -221,13 +320,8 @@ namespace IceCream::App::Views
     {
         auto& model = instance_->viewModel_;
 
-        if (instance_->parametersPanel_.Keyboard(key, model))
-        {
-            instance_->ReloadMeshIfChanged();
-            glutPostRedisplay();
-
+        if (instance_->parametersPanel_.Editing())
             return;
-        }
 
         const auto& parameters = model.Parameters();
 
@@ -340,6 +434,7 @@ namespace IceCream::App::Views
 
     void MainWindow::Close()
     {
+        instance_->toolbarText_.Destroy();
         instance_->parametersPanel_.Destroy();
         instance_->sceneView_.Destroy();
         instance_->sectionView_.Destroy();

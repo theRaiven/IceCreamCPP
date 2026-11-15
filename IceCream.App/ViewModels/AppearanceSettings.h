@@ -27,11 +27,15 @@ enum class ColorRole
 };
 struct AppearanceSettings
 {
+    static constexpr int MinTextSize = 12;
+    static constexpr int DefaultTextSize = 16;
+    static constexpr int MaxTextSize = 22;
     bool LightTheme = false;
     bool ShowHints = false;
     bool ShowConstraintSurfaces = true;
     int HintSize = 14;
     int CoordinateSize = 20;
+    int TextSize = DefaultTextSize;
     std::array<glm::vec4, static_cast<size_t>(ColorRole::Count)> Colors{};
     AppearanceSettings()
     {

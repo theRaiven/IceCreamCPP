@@ -19,6 +19,7 @@ namespace IceCream::App::Views
 		Graphics::LineRenderer lineRenderer_;
 		Graphics::OverlayText text_;
         Graphics::OverlayText hints_;
+        Graphics::OverlayText measurements_;
 
 		float extent_ = 3;
 		float minZ_ = 0;
@@ -29,14 +30,17 @@ namespace IceCream::App::Views
 		void DrawOrientation(const glm::mat4& view, const ViewModels::AppearanceSettings& appearance) const;
 		int x_ = 0;
 		int y_ = 0;
-		int width_ = 1;
-		int height_ = 1;
+		int width_ = 0;
+		int height_ = 0;
+        int dpi_ = USER_DEFAULT_SCREEN_DPI;
+        mutable int plotHeight_ = 1;
 
 	public:
 		void Initialize();
-		void SetViewport(int x, int y, int width, int height);
+		void SetViewport(int x, int y, int width, int height, int dpi);
 		void UploadMesh(const Core::Geometry::TriangleMesh& mesh, const std::vector<std::array<float,4>>& colors = {});
-		void Render(const ViewModels::MainViewModel& viewModel) const;
+        static std::string MeasurementText(const ViewModels::MainViewModel& viewModel, bool compact = false);
+		void Render(const ViewModels::MainViewModel& viewModel, bool showMeasurement) const;
 		bool Contains(int windowX, int windowY, int windowHeight) const;
 		void OnMouseDown(int x, int y);
 		void OnMouseUp();

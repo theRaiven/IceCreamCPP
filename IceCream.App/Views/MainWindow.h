@@ -4,6 +4,7 @@
 #include "ParametersPanel/ParametersPanel.h"
 #include "SceneView.h"
 #include "SectionView.h"
+#include "WindowLayout.h"
 
 namespace IceCream::App::Views
 {
@@ -19,11 +20,16 @@ class MainWindow
     SceneView sceneView_;
     SectionView sectionView_;
     ParametersPanel parametersPanel_;
+    Graphics::OverlayText toolbarText_;
+    ViewBounds readouts_;
     int windowWidth_ = 1440;
     int windowHeight_ = 820;
-    int layoutWidth_ = 0, layoutHeight_ = 0, layoutPanelWidth_ = -1;
+    int dpi_ = USER_DEFAULT_SCREEN_DPI;
+    bool layoutDirty_ = true;
+    bool layoutPanelOpen_ = false;
 
     void UpdateLayout();
+    void DrawReadouts() const;
     void ReloadMesh();
     void ReloadMeshIfChanged();
     std::uint64_t uploadedRevision_ = 0;
@@ -36,6 +42,7 @@ class MainWindow
     static void Keyboard(unsigned char key, int x, int y);
     static void Special(int key, int x, int y);
     static void Close();
+    static LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
 
   public:
     /// <summary>

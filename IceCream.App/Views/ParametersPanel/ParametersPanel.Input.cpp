@@ -22,15 +22,70 @@ namespace IceCream::App::Views
         }
         struct Palette
         {
+            static constexpr int DesignWidth = 666, DesignHeight = 452;
+            static constexpr DWORD Style = WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN;
+            static constexpr DWORD ExStyle = WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT | WS_EX_COMPOSITED;
+            struct ControlLayout
+            {
+                HWND Window;
+                RECT Bounds;
+            };
             HWND window = nullptr;
             glm::vec4 color{ 1 };
             bool accepted = false, valid = true, updating = false, alternate = false;
             HFONT font = nullptr;
+            std::vector<ControlLayout> controls;
+            RECT spectrum{}, sample{};
+            double scale = 1;
             std::vector<DWORD> spectrum_;
             bool spectrumAlternate_ = false;
+            ~Palette() { if (font) DeleteObject(font); }
+
+            int Pixel(LONG value) const { return static_cast<int>(std::lround(value * scale)); }
+
+            RECT Scale(RECT rect) const
+            {
+                return {Pixel(rect.left), Pixel(rect.top), Pixel(rect.right), Pixel(rect.bottom)};
+            }
+
+            void Layout(UINT dpi, const RECT& anchor)
+            {
+                MONITORINFO info{};
+                info.cbSize = sizeof(info);
+                GetMonitorInfoW(MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST), &info);
+                const auto& work = info.rcWork;
+                RECT frame{};
+                AdjustWindowRectExForDpi(&frame, Style, FALSE, ExStyle, dpi);
+                const int borderWidth = frame.right - frame.left;
+                const int borderHeight = frame.bottom - frame.top;
+                scale = std::min({dpi / 96.0, std::max(1L, work.right - work.left - borderWidth) / double(DesignWidth),
+                    std::max(1L, work.bottom - work.top - borderHeight) / double(DesignHeight)});
+                const int width = Pixel(DesignWidth) + borderWidth;
+                const int height = Pixel(DesignHeight) + borderHeight;
+                const int x = std::clamp<int>((anchor.left + anchor.right - width) / 2, work.left, work.right - width);
+                const int y = std::clamp<int>((anchor.top + anchor.bottom - height) / 2, work.top, work.bottom - height);
+                SetWindowPos(window, nullptr, x, y, width, height, SWP_NOACTIVATE | SWP_NOZORDER);
+                spectrum = Scale({16, 16, 376, 266});
+                sample = Scale({396, 58, 650, 100});
+                HFONT next = CreateFontW(-std::max(1, Pixel(16)), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                    DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
+                for (const auto& control : controls)
+                {
+                    const auto bounds = Scale(control.Bounds);
+                    if (next)
+                        SendMessageW(control.Window, WM_SETFONT, reinterpret_cast<WPARAM>(next), FALSE);
+                    MoveWindow(control.Window, bounds.left, bounds.top, bounds.right - bounds.left,
+                        bounds.bottom - bounds.top, TRUE);
+                }
+                if (next)
+                {
+                    if (font) DeleteObject(font);
+                    font = next;
+                }
+                InvalidateRect(window, nullptr, FALSE);
+            }
             void RepaintSample()
             {
-                RECT sample{ 396, 58, 650, 100 };
                 InvalidateRect(window, &sample, FALSE);
             }
             static glm::vec3 Spectrum(float x, float y, bool alternate)
@@ -117,6 +172,11 @@ namespace IceCream::App::Views
                 }
                 if (!p)
                     return DefWindowProcW(hwnd, msg, w, l);
+                if (msg == WM_DPICHANGED)
+                {
+                    p->Layout(HIWORD(w), *reinterpret_cast<const RECT*>(l));
+                    return 0;
+                }
                 if (msg == WM_PAINT)
                 {
                     PAINTSTRUCT ps;
@@ -143,14 +203,18 @@ namespace IceCream::App::Views
                     info.bmiHeader.biPlanes = 1;
                     info.bmiHeader.biBitCount = 32;
                     info.bmiHeader.biCompression = BI_RGB;
-                    StretchDIBits(dc, 16, 16, 360, 250, 0, 0, 360, 250, p->spectrum_.data(), &info, DIB_RGB_COLORS, SRCCOPY);
-                    for (int y = 58; y < 100; y += 10)
-                        for (int x = 396; x < 650; x += 10)
+                    const auto& spectrum = p->spectrum;
+                    StretchDIBits(dc, spectrum.left, spectrum.top, spectrum.right - spectrum.left, spectrum.bottom - spectrum.top,
+                        0, 0, 360, 250, p->spectrum_.data(), &info, DIB_RGB_COLORS, SRCCOPY);
+                    const auto& sample = p->sample;
+                    const int square = std::max(1, p->Pixel(10));
+                    for (int y = sample.top; y < sample.bottom; y += square)
+                        for (int x = sample.left; x < sample.right; x += square)
                         {
-                            float gray = ((x / 10 + y / 10) % 2) ? .8f : 1;
+                            float gray = ((x / square + y / square) % 2) ? .8f : 1;
                             auto c = glm::vec3(p->color) * p->color.a + glm::vec3(gray) * (1 - p->color.a);
                             HBRUSH b = CreateSolidBrush(RGB(int(c.r * 255), int(c.g * 255), int(c.b * 255)));
-                            RECT r{ x, y, std::min(x + 10, 650), std::min(y + 10, 100) };
+                            RECT r{ x, y, std::min<LONG>(x + square, sample.right), std::min<LONG>(y + square, sample.bottom) };
                             FillRect(dc, &r, b);
                             DeleteObject(b);
                         }
@@ -159,13 +223,15 @@ namespace IceCream::App::Views
                 }
                 if (msg == WM_LBUTTONDOWN || (msg == WM_MOUSEMOVE && (w & MK_LBUTTON)))
                 {
-                    int x = static_cast<short>(LOWORD(l)), y = static_cast<short>(HIWORD(l));
-                    if (x >= 16 && x < 376 && y >= 16 && y < 266)
+                    const POINT point{static_cast<short>(LOWORD(l)), static_cast<short>(HIWORD(l))};
+                    const auto& bounds = p->spectrum;
+                    if (PtInRect(&bounds, point))
                     {
                         if (msg == WM_LBUTTONDOWN)
                             SetCapture(hwnd);
-                        auto c = Spectrum(std::clamp((x - 16) / 359.0f, 0.0f, 1.0f), std::clamp((y - 16) / 249.0f, 0.0f, 1.0f),
-                            p->alternate);
+                        const float x = float(point.x - bounds.left) / std::max(1L, bounds.right - bounds.left - 1);
+                        const float y = float(point.y - bounds.top) / std::max(1L, bounds.bottom - bounds.top - 1);
+                        auto c = Spectrum(x, y, p->alternate);
                         p->color = glm::vec4(c, p->color.a);
                         p->Sync();
                     }
@@ -209,8 +275,7 @@ namespace IceCream::App::Views
                     if (id == 3)
                     {
                         p->alternate = !p->alternate;
-                        RECT spectrum{ 16, 16, 376, 266 };
-                        InvalidateRect(hwnd, &spectrum, FALSE);
+                        InvalidateRect(hwnd, &p->spectrum, FALSE);
                         return 0;
                     }
                     if (!p->updating && note == EN_CHANGE && ((id >= 10 && id < 14) || id == 22))
@@ -262,7 +327,6 @@ namespace IceCream::App::Views
         }
         else
             p.color = model_->Appearance().Colors.at(role);
-        p.font = font_;
         WNDCLASSW cls{};
         cls.lpfnWndProc = Palette::Proc;
         cls.hInstance = GetModuleHandleW(nullptr);
@@ -271,17 +335,17 @@ namespace IceCream::App::Views
         RegisterClassW(&cls);
         RECT parent;
         GetWindowRect(parent_, &parent);
-        HWND win = CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT | WS_EX_COMPOSITED, cls.lpszClassName,
-            L"Палитра цвета · RGB / RGBA / HEX", WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN,
-            parent.left + 80, parent.top + 80, 690, 490, parent_, nullptr, cls.hInstance, &p);
+        HWND win = CreateWindowExW(Palette::ExStyle, cls.lpszClassName, L"Палитра цвета · RGB / RGBA / HEX",
+            Palette::Style, (parent.left + parent.right) / 2, (parent.top + parent.bottom) / 2, 1, 1,
+            parent_, nullptr, cls.hInstance, &p);
         if (!win)
             return;
         auto make = [&](const wchar_t* type, const wchar_t* title, int id, int x, int y, int width, int height,
             DWORD style) {
                 HWND c = CreateWindowExW(wcscmp(type, L"EDIT") == 0 ? WS_EX_CLIENTEDGE : 0, type, title,
-                    WS_CHILD | WS_VISIBLE | style, x, y, width, height, win,
+                    WS_CHILD | WS_VISIBLE | style, 0, 0, 1, 1, win,
                     reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), cls.hInstance, nullptr);
-                SendMessageW(c, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
+                p.controls.push_back({c, {x, y, x + width, y + height}});
                 return c;
             };
         make(L"BUTTON", L"Сменить палитру", 3, 396, 16, 254, 30, WS_TABSTOP);
@@ -301,6 +365,7 @@ namespace IceCream::App::Views
         }
         make(L"BUTTON", L"Применить", 1, 398, 405, 122, 32, WS_TABSTOP | BS_DEFPUSHBUTTON);
         make(L"BUTTON", L"Отмена", 2, 530, 405, 120, 32, WS_TABSTOP);
+        p.Layout(GetDpiForWindow(win), parent);
         p.Sync();
         EnableWindow(parent_, FALSE);
         ShowWindow(win, SW_SHOW);

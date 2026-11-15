@@ -87,7 +87,7 @@ void ParametersPanel::LoadDrafts()
         Write(Control(id), p.Name);
         Write(Control(id + 1), p.Function);
         SendMessageW(Control(id + 15), CB_RESETCONTENT, 0, 0);
-        for (auto name : { L"Объём под графиком (до основания)", L"Автообъём (плоскость — до нуля)" })
+        for (auto name : { L"Объём до основания", L"Автообъём" })
             SendMessageW(Control(id + 15), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(name));
         SendMessageW(Control(id + 15), CB_SETCURSEL, p.AutoUpper ? 1 : 0, 0);
         SendMessageW(Control(id + 2), CB_SETCURSEL, static_cast<int>(p.Coordinates), 0);
@@ -119,7 +119,7 @@ void ParametersPanel::LoadDrafts()
             auto order = p.Coordinates == CoordinateSystem::Polar
                              ? (j ? std::array<int, 3>{{1, 0, 2}} : std::array<int, 3>{{0, 1, 2}})
                              : orders[j];
-            std::string title = "Порядок интегрирования: ";
+            std::string title = "Порядок: ";
             int dims = p.Coordinates == CoordinateSystem::Polar ? 2 : 3;
             for (int d = 0; d < dims; ++d)
             {
@@ -210,6 +210,7 @@ void ParametersPanel::IntegralCommand(int id, int notification)
     {
         StoreDrafts();
         UpdateIntegralPreview(part);
+        Layout();
         return;
     }
     if (field == 10)
@@ -234,6 +235,7 @@ void ParametersPanel::IntegralCommand(int id, int notification)
     {
         StoreDrafts();
         UpdateIntegralPreview(part);
+        Layout();
         return;
     }
     if ((field == 2 || field == 3 || field == 14) && notification == CBN_SELCHANGE)

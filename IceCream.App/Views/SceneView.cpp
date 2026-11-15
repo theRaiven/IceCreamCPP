@@ -75,12 +75,13 @@ namespace IceCream::App::Views
 		lineRenderer_.Initialize();
 	}
 
-	void SceneView::SetViewport(int x, int y, int width, int height)
+	void SceneView::SetViewport(int x, int y, int width, int height, int dpi)
 	{
 		x_ = x;
 		y_ = y;
-		width_ = std::max(width, 1);
-		height_ = std::max(height, 1);
+		width_ = width;
+		height_ = height;
+        dpi_ = dpi;
 	}
 
 	void SceneView::UploadMesh(const Core::Geometry::TriangleMesh& mesh, const std::vector<std::array<float,4>>& colors)
@@ -104,12 +105,56 @@ namespace IceCream::App::Views
 		extent_ = std::max(2.0f, std::ceil(std::max({std::abs(minX), std::abs(maxX), std::abs(minY), std::abs(maxY)}) + 1));
 	}
 
-	void SceneView::Render(const ViewModels::MainViewModel& viewModel) const
+    std::string SceneView::MeasurementText(const ViewModels::MainViewModel& viewModel, bool compact)
+    {
+        if (!viewModel.HasVolume())
+            return compact ? "Объём недоступен" : "Объём недоступен: сетка не замкнута";
+
+        char status[128];
+        std::snprintf(status, sizeof(status), viewModel.UsesMeshVolume() ? "Объём по сетке: %.5g" : "Интеграл / объём: %.5g",
+            viewModel.Volume());
+        return status;
+    }
+
+	void SceneView::Render(const ViewModels::MainViewModel& viewModel, bool showMeasurement) const
 	{
+        if (width_ == 0 || height_ == 0)
+            return;
 		const auto& appearance = viewModel.Appearance();
-        text_.SetSize(appearance.CoordinateSize);
-        hints_.SetSize(appearance.HintSize);
-        glViewport(x_, y_, width_, height_);
+        text_.SetSize(MulDiv(appearance.CoordinateSize, dpi_, 96));
+        hints_.SetSize(MulDiv(appearance.HintSize, dpi_, 96));
+        Graphics::OverlayHeader header(width_, height_, dpi_);
+        const glm::vec3 textColor(appearance.Color(ColorRole::Text));
+        if (showMeasurement)
+        {
+            measurements_.SetSize(MulDiv(appearance.TextSize + 2, dpi_, 96));
+            header.Add(measurements_, textColor, MeasurementText(viewModel).c_str(), 2);
+        }
+        else if (!viewModel.HasVolume())
+            header.Add(hints_, textColor, "Сетка не замкнута", 2);
+        if (appearance.ShowHints)
+            header.Add(hints_, textColor, "ЛКМ: вращать · ПКМ: перемещать · колесо: масштаб", 2);
+        if (appearance.ShowConstraintSurfaces)
+        {
+            const auto& guides = viewModel.ConstraintSurfaces();
+            for (size_t i = 0; i < guides.size(); ++i)
+            {
+                const int rows = header.AvailableRows(hints_);
+                if (rows == 0) break;
+                if (rows == 1 && i + 1 < guides.size())
+                {
+                    header.Add(hints_, textColor, ("Ещё ограничений: " + std::to_string(guides.size() - i)).c_str());
+                    break;
+                }
+                const auto& guide = guides[i];
+                std::string label = std::to_string(i + 1) + ": " + guide.Condition;
+                if (guide.Undefined) label += " (не определена)";
+                else if (guide.Triangles.empty()) label += " (вне области показа)";
+                header.Add(hints_, guide.Color, label.c_str());
+            }
+        }
+        plotHeight_ = height_ - header.Height();
+        glViewport(x_, y_, width_, plotHeight_);
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_SCISSOR_TEST);
 		glScissor(x_, y_, width_, height_);
@@ -118,7 +163,7 @@ namespace IceCream::App::Views
 		glStencilMask(0xff);
 		glClearStencil(0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-		glDisable(GL_SCISSOR_TEST);
+        glScissor(x_, y_, width_, plotHeight_);
 
 		const glm::mat4 rotation(viewModel.SurfaceRotation());
         const glm::vec3 center = glm::vec3(viewModel.SurfaceRotation() * glm::dvec3(centerX_,centerY_,viewModel.CenterZ()));
@@ -129,11 +174,11 @@ namespace IceCream::App::Views
 		// Масштабируем сцену, чтобы поверхность и сетка помещались в кадре.
 		const float fit = std::max({1.0f, (maxZ_ - minZ_) / 5.0f, extent_ / 3.5f});
 		const glm::mat4 view = camera_.ViewMatrix() * glm::scale(glm::mat4(1), glm::vec3(1.0f / fit));
-		const glm::mat4 projection = glm::perspective(
-		    glm::radians(45.0f),
-		    static_cast<float>(width_) / static_cast<float>(height_),
-		    0.1f,
-		    100.0f);
+        const float aspect = static_cast<float>(width_) / static_cast<float>(plotHeight_);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+        // Keep the same field of view along the shorter side.
+        projection[0][0] *= std::min(aspect, 1.0f);
+        projection[1][1] *= std::min(aspect, 1.0f);
 		const glm::mat4 mvp = projection * view * model;
 		DrawCoordinates(projection * view * glm::translate(glm::mat4(1), -glm::vec3(viewModel.SurfaceRotation() * glm::dvec3(centerX_,centerY_,viewModel.CenterZ()))), appearance, glm::mat3(rotation));
 		const float joinHeight = static_cast<float>(viewModel.Parameters().BaseHeight);
@@ -144,7 +189,9 @@ namespace IceCream::App::Views
 		const glm::vec4 cutPlane(static_cast<float>(normal.X), static_cast<float>(normal.Y),
 		                         static_cast<float>(normal.Z), static_cast<float>(-normal.X * origin.X - normal.Y * origin.Y - normal.Z * origin.Z));
 
+        glDisable(GL_SCISSOR_TEST);
 		meshRenderer_.RenderShadowMap(viewModel.Lighting());
+        glEnable(GL_SCISSOR_TEST);
 
 		meshRenderer_.Draw(model, view, projection, joinHeight, cutPlane, false, viewModel.TransparentPositive(), viewModel.HasPartJoin(), viewModel.Lighting(), appearance);
 
@@ -263,47 +310,9 @@ namespace IceCream::App::Views
 		glDepthFunc(GL_LESS);
 		glDisable(GL_DEPTH_TEST);
 		DrawOrientation(view, appearance);
-        char status[128];
-        if (!viewModel.HasVolume())
-            std::snprintf(status, sizeof(status), "Объём недоступен: сетка не замкнута");
-        else
-            std::snprintf(status, sizeof(status), viewModel.UsesMeshVolume() ? "Объём по сетке: %.5g" : "Интеграл / объём: %.5g", viewModel.Volume());
-        text_.Screen(16, height_-80, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), status);
-        if (appearance.ShowConstraintSurfaces && !viewModel.ConstraintSurfaces().empty())
-        {
-            // Keep a long condition inside its own viewport, independently of font size.
-            glEnable(GL_SCISSOR_TEST);
-            glScissor(x_, y_, width_, height_);
-            int row = height_ - 118;
-            const int rowHeight = appearance.HintSize + 6;
-            const size_t characters = static_cast<size_t>(std::max(12, (width_-32) / std::max(1, appearance.HintSize*2/3)));
-            for (size_t i = 0; i < viewModel.ConstraintSurfaces().size(); ++i)
-            {
-                if (row < 175)
-                {
-                    hints_.Screen(16, static_cast<float>(row), width_, height_, glm::vec3(appearance.Color(ColorRole::Text)),
-                        ("Ещё ограничений: " + std::to_string(viewModel.ConstraintSurfaces().size()-i)).c_str());
-                    break;
-                }
-                const auto& guide = viewModel.ConstraintSurfaces()[i];
-                std::string label = std::to_string(i+1) + ": " + guide.Condition;
-                if (guide.Undefined) label += " (не определена)";
-                else if (guide.Triangles.empty()) label += " (вне области показа)";
-                if (label.size() > characters)
-                {
-                    size_t end = characters-3;
-                    while (end > 0 && (static_cast<unsigned char>(label[end]) & 0xc0) == 0x80) --end;
-                    label = label.substr(0, end) + "...";
-                }
-                hints_.Screen(16, static_cast<float>(row), width_, height_, guide.Color, label.c_str());
-                row -= rowHeight;
-            }
-            glDisable(GL_SCISSOR_TEST);
-        }
-        if (appearance.ShowHints) {
-            hints_.Screen(16,height_-62,width_,height_,glm::vec3(appearance.Color(ColorRole::Text)),"ЛКМ: вращать · ПКМ: перемещать · колесо: масштаб");
-        }
-
+        glScissor(x_, y_, width_, height_);
+        header.Draw(x_, y_, height_);
+        glDisable(GL_SCISSOR_TEST);
 		glEnable(GL_DEPTH_TEST);
 	}
 
@@ -337,9 +346,29 @@ namespace IceCream::App::Views
 		lineRenderer_.Draw({0, 0, std::min(0.0f, minZ), 0, 0, zEnd, 0, 0, zEnd, .10f, 0, zEnd - .22f,
 		                    0, 0, zEnd, -.10f, 0, zEnd - .22f},
 		                   mvp, colors[2], GL_LINES);
-		text_.World({extent, 0, 0}, mvp, colors[0], "X");
-		text_.World({0, extent, 0}, mvp, colors[1], "Y");
-		text_.World({0, 0, zEnd}, mvp, colors[2], "Z");
+        std::vector<glm::vec4> labelBounds;
+        const float gap = static_cast<float>(MulDiv(2, dpi_, 96));
+        auto label = [&](const glm::vec3& at, const glm::vec3& color, const char* value)
+        {
+            const glm::vec4 clip = mvp * glm::vec4(at, 1);
+            if (clip.w <= 0 || std::abs(clip.z) > clip.w)
+                return;
+            const glm::vec2 pixel = (glm::vec2(clip) / clip.w * .5f + .5f) * glm::vec2(width_, plotHeight_);
+            const float top = pixel.y + text_.Ascent();
+            const glm::vec4 bounds(pixel.x, top - text_.Height(), pixel.x + text_.Measure(value), top);
+            if (bounds.x < 0 || bounds.y < 0 || bounds.z > width_ || bounds.w > plotHeight_)
+                return;
+            for (const auto& other : labelBounds)
+                if (bounds.x < other.z + gap && bounds.z + gap > other.x &&
+                    bounds.y < other.w + gap && bounds.w + gap > other.y)
+                    return;
+            labelBounds.push_back(bounds);
+            text_.World(at, mvp, color, value);
+        };
+        label({extent, 0, 0}, colors[0], "X");
+        label({0, extent, 0}, colors[1], "Y");
+        label({0, 0, zEnd}, colors[2], "Z");
+        label({.06f, .06f, .03f}, glm::vec3(appearance.Color(ColorRole::Text)), "0");
 		char number[24];
 
 		for (float t = -extent + step; t < extent; t += step)
@@ -351,8 +380,8 @@ namespace IceCream::App::Views
 
 			lineRenderer_.Draw({t, -.06f, 0, t, .06f, 0, -.06f, t, 0, .06f, t, 0}, mvp, glm::vec3(appearance.Color(ColorRole::Text)), GL_LINES);
 			std::snprintf(number, sizeof(number), "%g", t);
-			text_.World({t, -.17f, 0}, mvp, colors[0], number);
-			text_.World({-.17f, t, 0}, mvp, colors[1], number);
+			label({t, -.17f, 0}, colors[0], number);
+			label({-.17f, t, 0}, colors[1], number);
 		}
 
 		const float zStep = std::max(1.0f, std::ceil((zEnd - floorZ) / 10));
@@ -360,21 +389,42 @@ namespace IceCream::App::Views
 		for (float z = std::ceil(floorZ / zStep) * zStep; z < zEnd; z += zStep)
 		{
 			lineRenderer_.Draw({-.07f, 0, z, .07f, 0, z}, mvp, colors[2], GL_LINES);
-			std::snprintf(number, sizeof(number), "%g", z);
-			text_.World({.10f, 0, z}, mvp, colors[2], number);
+            if (std::abs(z) >= .01f)
+            {
+                std::snprintf(number, sizeof(number), "%g", z);
+                label({.10f, 0, z}, colors[2], number);
+            }
 		}
 
-		text_.World({.06f, .06f, .03f}, mvp, glm::vec3(appearance.Color(ColorRole::Text)), "0");
 		glLineWidth(1);
 	}
 
 	void SceneView::DrawOrientation(const glm::mat4& view, const ViewModels::AppearanceSettings& appearance) const
 	{
-		const glm::mat4 ortho = glm::ortho(0.0f, static_cast<float>(width_), 0.0f, static_cast<float>(height_));
-		lineRenderer_.Draw({12, 12, 0, 118, 12, 0, 118, 122, 0, 12, 122, 0}, ortho, glm::vec3(appearance.Color(ColorRole::Panel)), GL_TRIANGLE_FAN);
-		text_.Screen(22, 105, width_, height_, glm::vec3(appearance.Color(ColorRole::Text)), "Ориентация");
+        const float scale = dpi_ / 96.0f;
+        const char* title = "Ориентация";
+        const char* names[] = {"X", "Y", "Z"};
+        const float left = 8 * scale, bottom = 8 * scale, padding = 8 * scale;
+        const float arm = 27 * scale, labelOffset = 3 * scale;
+        const float descent = static_cast<float>(hints_.Height() - hints_.Ascent());
+        const float nameWidth = static_cast<float>(std::max({hints_.Measure(names[0]), hints_.Measure(names[1]),
+            hints_.Measure(names[2])}));
+        const float axesWidth = 2 * arm + labelOffset + nameWidth;
+        const float contentWidth = std::max(axesWidth, static_cast<float>(hints_.Measure(title)));
+        const float right = left + 2 * padding + contentWidth;
+        const float originX = left + padding + arm + (contentWidth - axesWidth) * .5f;
+        const float originY = bottom + padding + arm + descent;
+        const float axesTop = originY + arm + labelOffset + hints_.Ascent();
+        const float titleY = axesTop + padding + descent;
+        const float top = titleY + hints_.Ascent() + padding;
+        if (width_ < 240 * scale || plotHeight_ < std::max(170 * scale, top + padding))
+            return;
+
+        const glm::mat4 ortho = glm::ortho(0.0f, static_cast<float>(width_), 0.0f, static_cast<float>(plotHeight_));
+        lineRenderer_.Draw({left, bottom, 0, right, bottom, 0, right, top, 0, left, top, 0},
+            ortho, glm::vec3(appearance.Color(ColorRole::Panel)), GL_TRIANGLE_FAN);
+        hints_.Screen(left + padding, titleY, width_, plotHeight_, glm::vec3(appearance.Color(ColorRole::Text)), title);
 		const glm::vec3 colors[] = {glm::vec3(appearance.Color(ColorRole::AxisX)), glm::vec3(appearance.Color(ColorRole::AxisY)), glm::vec3(appearance.Color(ColorRole::AxisZ))};
-		const char* names[] = {"X", "Y", "Z"};
 		const glm::mat3 rotation(view);
 		glLineWidth(2.5f);
 
@@ -383,9 +433,9 @@ namespace IceCream::App::Views
 			glm::vec3 axis(0);
 			axis[i] = 1;
 			glm::vec3 direction = glm::normalize(rotation * axis);
-			float x = 65 + direction.x * 37, y = 58 + direction.y * 37;
-			lineRenderer_.Draw({65, 58, 0, x, y, 0}, ortho, colors[i], GL_LINES);
-			text_.Screen(x + 3, y + 3, width_, height_, colors[i], names[i]);
+			float x = originX + direction.x * arm, y = originY + direction.y * arm;
+			lineRenderer_.Draw({originX, originY, 0, x, y, 0}, ortho, colors[i], GL_LINES);
+			hints_.Screen(x + labelOffset, y + labelOffset, width_, plotHeight_, colors[i], names[i]);
 		}
 
 		glLineWidth(1);
@@ -393,7 +443,7 @@ namespace IceCream::App::Views
 
 	bool SceneView::Contains(int windowX, int windowY, int windowHeight) const
 	{
-		const int openGlY = windowHeight - windowY;
+		const int openGlY = windowHeight - 1 - windowY;
 
 		return windowX >= x_ && windowX < x_ + width_ && openGlY >= y_ && openGlY < y_ + height_;
 	}
@@ -421,7 +471,7 @@ namespace IceCream::App::Views
 	void SceneView::OnMouseMove(int x, int y)
 	{
 		camera_.Rotate(x, y);
-		camera_.Pan(x, y, height_);
+		camera_.Pan(x, y, std::min(width_, plotHeight_));
 	}
 
 	void SceneView::OnWheel(int direction)
@@ -438,6 +488,7 @@ namespace IceCream::App::Views
 	{
 		text_.Destroy();
         hints_.Destroy();
+        measurements_.Destroy();
 		meshRenderer_.Destroy();
 		lineRenderer_.Destroy();
 	}

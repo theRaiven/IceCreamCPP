@@ -969,7 +969,8 @@ namespace IceCream::App::ViewModels
 
 	void MainViewModel::SetAppearance(const AppearanceSettings& settings)
 	{
-		if (settings.CoordinateSize < 12 || settings.CoordinateSize>36 || settings.HintSize < 10 || settings.HintSize>24)
+		if (settings.CoordinateSize < 12 || settings.CoordinateSize>36 || settings.HintSize < 10 || settings.HintSize>24 ||
+            settings.TextSize < AppearanceSettings::MinTextSize || settings.TextSize > AppearanceSettings::MaxTextSize)
 			throw std::out_of_range("Invalid text size");
 		for (auto color : settings.Colors) for (int i = 0; i < 4; ++i)
 			if (!std::isfinite(color[i]) || color[i] < 0 || color[i]>1) throw std::invalid_argument("Invalid color");

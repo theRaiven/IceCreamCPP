@@ -105,12 +105,14 @@
     <ClInclude Include="Views\Graphics\OrbitCamera\OverlayText.h" />
     <ClInclude Include="Views\Graphics\ShaderSource\ShaderSource.h" />
     <ClInclude Include="Views\MainWindow.h" />
+    <ClInclude Include="Views\WindowLayout.h" />
     <ClInclude Include="Views\ParametersPanel\ParametersPanel.h" />
     <ClInclude Include="Views\SceneView.h" />
     <ClInclude Include="Views\SectionView.h" />
     <ClInclude Include="Views\Graphics\OrbitCamera\SectionCamera.h" />
   </ItemGroup>
   <ItemGroup>
+    <Manifest Include="IceCream.App.manifest" />
     <None Include="Views\Shaders\Line.frag" />
     <None Include="Views\Shaders\Line.vert" />
     <None Include="Views\Shaders\Mesh.frag" />

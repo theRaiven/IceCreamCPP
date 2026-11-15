@@ -27,6 +27,9 @@
     <ClCompile Include="Services\SectionCameraTests.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="Services\WindowLayoutTests.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
     <ClCompile Include="Geometry\Point2DTests.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>

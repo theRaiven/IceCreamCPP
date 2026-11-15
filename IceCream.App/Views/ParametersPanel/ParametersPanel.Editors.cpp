@@ -8,35 +8,58 @@ namespace IceCream::App::Views
 {
     void ParametersPanel::Layout()
     {
-        if (!content_)
+        if (!content_ || !panelOpen_ || viewportOpen_ != panelOpen_ || width_ <= 0 || height_ <= 0)
             return;
 
         HWND focus = GetFocus();
         std::map<HWND, RECT> desired;
         int y = 12, label = 20000;
-        int right = width_ - 36;
-        auto place = [&](int id, int x, int top, int width, int h = 28) {
-            desired[Control(id)] = { x, top - scroll_, x + width, top - scroll_ + h };
+        const int right = std::max(21, width_ - 16);
+        constexpr int DefaultSize = ViewModels::AppearanceSettings::DefaultTextSize;
+        const int rowSize = std::max(DefaultSize, model_->Appearance().TextSize);
+        auto vertical = [rowSize](int value) { return MulDiv(value, rowSize, DefaultSize); };
+        HDC dc = GetDC(content_);
+        auto wrappedHeight = [&](const wchar_t* value, int width, HFONT font) {
+            HGDIOBJ old = SelectObject(dc, font);
+            RECT measure{0, 0, Pixels(width), 0};
+            DrawTextW(dc, value, -1, &measure, DT_CALCRECT | DT_LEFT | DT_WORDBREAK | DT_NOPREFIX | DT_EDITCONTROL);
+            SelectObject(dc, old);
+            return (Logical(measure.bottom) * DefaultSize + rowSize - 1) / rowSize + 4;
+            };
+        auto place = [&](int id, int x, int top, int width, int h = 30) {
+            desired[Control(id)] = { Pixels(x), Pixels(vertical(top)), Pixels(x + std::max(1, width)), Pixels(vertical(top + h)) };
             };
         auto text = [&](const wchar_t* s, int x, int top, int width, int h = 28) {
             int id = label++;
             SetText(id, s);
             place(id, x, top, width, h);
             };
+        static constexpr int Left = 16;
+        auto paragraph = [&](int id, HFONT font) {
+            const HWND control = Control(id);
+            const int length = GetWindowTextLengthW(control);
+            if (length == 0)
+                return;
+            std::wstring value(length + 1, L'\0');
+            GetWindowTextW(control, value.data(), length + 1);
+            const int height = wrappedHeight(value.c_str(), right - Left, font);
+            place(id, Left, y, right - Left, height);
+            y += height + 8;
+            };
+        auto wrappedText = [&](const wchar_t* value) {
+            const int id = label++;
+            SetText(id, value);
+            paragraph(id, font_);
+            };
         auto row = [&](const wchar_t* s, int id) {
-            text(s, 20, y, 205);
-            place(id, 230, y, right - 230);
-            y += 38;
+            const int input = right - std::max(76, (right - Left) / 3);
+            const int labelWidth = input - Left - 6;
+            const int height = std::max(30, wrappedHeight(s, labelWidth, font_));
+            text(s, Left, y, labelWidth, height);
+            place(id, input, y, right - input);
+            y += height + 8;
             };
-        auto header = [&](int i, const wchar_t* title) {
-            std::wstring s = expanded_[i] ? L"−  " : L"+  ";
-            s += title;
-            SetText(20 + i, s.c_str());
-            place(20 + i, 12, y, right - 12, 36);
-            y += 48;
-            return expanded_[i];
-            };
-        if (!appearanceTab_)
+        if (activePage_ != 3)
         {
 
             if (activePage_ == 0)
@@ -47,34 +70,31 @@ namespace IceCream::App::Views
                 place(900, 20, y, right - 20, 34);
                 y += 42;
 
-                place(921, 20, y, right - 20, 34);
+                const int half = (right - 20 - 8) / 2;
+                SetText(921, width_ < vertical(360) ? L"Сохранить" : L"Сохранить фигуру");
+                SetText(922, width_ < vertical(360) ? L"Открыть" : L"Открыть фигуру");
+                place(921, 20, y, half, 34);
+                place(922, 28 + half, y, right - 28 - half, 34);
                 y += 42;
 
-                place(922, 20, y, right - 20, 34);
-                y += 42;
-
-                place(801, 20, y, right - 20, 48);
-                y += 54;
+                paragraph(801, font_);
                 if (geometryMode_ == 2)
                 {
-                    text(L"Система неравенств (каждое с новой строки или через запятую)", 20, y, right - 20, 48);
-                    y += 52;
+                    wrappedText(L"Система неравенств (каждое с новой строки или через запятую)");
                     place(918, 20, y, right - 20, 116);
                     y += 124;
-                    text(L"Строится вся граница области, включая верх, низ и боковые стенки.", 20, y, right - 20, 44);
-                    y += 50;
+                    wrappedText(L"Строится вся граница области, включая верх, низ и боковые стенки.");
                 }
                 else
                 {
-                    SetText(916, constraintsOpen_ ? L"− Ограничения (для всей поверхности)" : L"+ Ограничения (для всей поверхности)");
+                    SetText(916, constraintsOpen_ ? L"− Ограничения" : L"+ Ограничения");
                     place(916, 20, y, right - 20, 32);
                     y += 42;
                     if (constraintsOpen_)
                     {
                         place(903, 20, y, right - 20, 82);
                         y += 90;
-                        text(L"Условия по X, Y, Z: по одному на строку или через запятую. Пусто — без обрезки.", 20, y, right - 20, 48);
-                        y += 58;
+                        wrappedText(L"Условия по X, Y, Z: по одному на строку или через запятую. Пусто — без обрезки.");
                         place(917, 20, y, right - 20, 30);
                         y += 40;
                     }
@@ -101,16 +121,17 @@ namespace IceCream::App::Views
                         y += 36;
                     }
                     text(L"Ось", 20, y, 36);
-                    text(L"От", 60, y, 100);
-                    text(L"До", 172, y, 100);
-                    text(L"Ячеек", 284, y, right - 284);
+                    const int fieldWidth = std::max(1, (right - 56 - 16) / 3);
+                    auto column = [fieldWidth](int i) { return 56 + i * (fieldWidth + 8); };
+                    text(L"От", column(0), y, fieldWidth);
+                    text(L"До", column(1), y, fieldWidth);
+                    text(L"Ячеек", column(2), y, fieldWidth);
                     y += 30;
                     for (int axis = 0; axis < 3; ++axis)
                     {
                         text(axis == 0 ? L"X" : axis == 1 ? L"Y" : L"Z", 20, y, 36);
-                        place(905 + 3 * axis, 60, y, 100);
-                        place(906 + 3 * axis, 172, y, 100);
-                        place(907 + 3 * axis, 284, y, right - 284);
+                        for (int field = 0; field < 3; ++field)
+                            place(905 + 3 * axis + field, column(field), y, fieldWidth);
                         y += 38;
                     }
                     if (geometryMode_ != 0)
@@ -118,10 +139,8 @@ namespace IceCream::App::Views
                         place(920, 20, y, right - 20, 32);
                         y += 40;
                     }
-                    text(geometryMode_ == 1 ? L"Например: x^2+y^2+z^2=9. Автоподбор ищет нулевой уровень и может расширить область поиска." :
-                        L"Пример: y^2<=2*x+2 и 0<=z<=4-x. Поля X/Y/Z задают начальную область поиска; автоподбор при необходимости расширит её.",
-                        20, y, right - 20, 66);
-                    y += 76;
+                    wrappedText(geometryMode_ == 1 ? L"Например: x^2+y^2+z^2=9. Автоподбор ищет нулевой уровень и может расширить область поиска." :
+                        L"Пример: y^2<=2*x+2 и 0<=z<=4-x. Поля X/Y/Z задают начальную область поиска; автоподбор при необходимости расширит её.");
                 }
                 else
                 {
@@ -156,8 +175,10 @@ namespace IceCream::App::Views
                             y += 42;
                         }
                         text(L"Ось", 20, y, 40);
-                        text(L"От", 65, y, (right - 80) / 2);
-                        text(L"До", 75 + (right - 80) / 2, y, (right - 80) / 2);
+                        const int boundWidth = (right - 65 - 10) / 2;
+                        const int upperX = 75 + boundWidth;
+                        text(L"От", 65, y, boundWidth);
+                        text(L"До", upperX, y, boundWidth);
                         y += 30;
                         const wchar_t* cart[] = { L"x", L"y", L"z" };
                         const wchar_t* radial[] = { L"r", L"phi", L"z" };
@@ -167,26 +188,26 @@ namespace IceCream::App::Views
                         {
                             int k = order[d];
                             text(p.Coordinates == Core::Services::CoordinateSystem::Cartesian ? cart[k] : radial[k], 20, y, 40);
-                            place(id + 4 + 2 * k, 65, y, (right - 80) / 2);
-                            place(id + 5 + 2 * k, 75 + (right - 80) / 2, y, (right - 80) / 2);
+                            place(id + 4 + 2 * k, 65, y, boundWidth);
+                            place(id + 5 + 2 * k, upperX, y, boundWidth);
                             y += 38;
                         }
                         if (graph)
                         {
                             int k = p.DependentAxis;
                             text(p.Coordinates == Core::Services::CoordinateSystem::Cartesian ? cart[k] : radial[k], 20, y, 40);
-                            place(id + 4 + 2 * k, 65, y, (right - 80) / 2);
-                            place(id + 5 + 2 * k, 75 + (right - 80) / 2, y, (right - 80) / 2);
+                            place(id + 4 + 2 * k, 65, y, boundWidth);
+                            place(id + 5 + 2 * k, upperX, y, boundWidth);
                             y += 38;
                         }
-                        place(id + 12, 20, y, right - 20, 72);
-                        y += 90;
+                        paragraph(id + 12, font_);
+                        y += 10;
                     }
                     place(901, 20, y, right - 20, 32);
                     y += 46;
                 }
             }
-            if (activePage_ == 1 && header(1, L"Сечение"))
+            else if (activePage_ == 1)
             {
                 for (int i = 0; i < 3; ++i)
                 {
@@ -208,11 +229,11 @@ namespace IceCream::App::Views
                 place(245, 20, y, right - 20, 32);
                 y += 50;
             }
-            if (activePage_ == 2 && header(2, L"Свет"))
+            else if (activePage_ == 2)
             {
                 place(300, 20, y, right - 20, 150);
                 y += 44;
-                const wchar_t* names[] = { L"Фоновая интенсивность", L"Собственное свечение", L"Сила источника",
+                const wchar_t* names[] = { L"Фоновый свет", L"Самосвечение", L"Сила источника",
                                           L"Положение X",           L"Положение Y",          L"Положение Z",
                                           L"Направление X",         L"Направление Y",        L"Направление Z",
                                           L"Угол прожектора, °",    L"Концентрация пучка" };
@@ -224,7 +245,7 @@ namespace IceCream::App::Views
                 y += 48;
             }
         }
-        else if (header(3, L"Вид и цвета"))
+        else
         {
             place(400, 20, y, right - 20, 120);
             y += 44;
@@ -241,6 +262,11 @@ namespace IceCream::App::Views
             y += 28;
             place(403, 20, y, right - 20, 28);
             y += 48;
+            swprintf_s(b, L"Основной текст: %d px", model_->Appearance().TextSize);
+            text(b, 20, y, right - 20);
+            y += 28;
+            place(404, 20, y, right - 20, 28);
+            y += 48;
             const wchar_t* names[] = { L"Фон 3D",          L"Фон сечения",    L"Фон панели",     L"Текст",
                                       L"Сетка",           L"Ползунки",       L"Поверхность",    L"Рожок / часть 1",
                                       L"Шапка / часть 2", L"Контур сечения", L"Границы частей", L"Ось X",
@@ -256,32 +282,31 @@ namespace IceCream::App::Views
         }
         if (model_->Appearance().ShowHints)
         {
-            SetText(800, appearanceTab_ ? L"Нажмите на образец цвета, чтобы открыть палитру. Размер координат "
+            SetText(800, activePage_ == 3 ? L"Нажмите на образец цвета, чтобы открыть палитру. Размер координат "
                 L"изменяет буквы осей и числа делений."
                 : L"Enter применяет ввод, Esc возвращает принятые значения. Tab переключает "
                 L"поля. Колесо прокручивает панель. Функции задаются с явным умножением, "
                 L"например sin(x)*cos(y). Сечение задано в мировых координатах.");
-            place(800, 20, y, right - 20, model_->Appearance().HintSize * 9);
-            y += model_->Appearance().HintSize * 9 + 16;
+            paragraph(800, hintFont_ ? hintFont_ : font_);
         }
         if (activePage_ != 0)
         {
-            place(801, 20, y, right - 20, 70);
-            y += 82;
+            paragraph(801, font_);
         }
-        contentHeight_ = y;
-        int maxScroll = std::max(0, y - (height_ - 52));
-        if (scroll_ > maxScroll)
+        ReleaseDC(content_, dc);
+        contentHeight_ = vertical(y);
+        scroll_ = std::min(scroll_, std::max(0, contentHeight_ - height_));
+        const int offset = Pixels(scroll_);
+        for (auto& [control, bounds] : desired)
         {
-            scroll_ = maxScroll;
-            Layout();
-            return;
+            bounds.top -= offset;
+            bounds.bottom -= offset;
         }
         SCROLLINFO info{ sizeof(info),
-                        SIF_RANGE | SIF_PAGE | SIF_POS,
+                        SIF_RANGE | SIF_PAGE | SIF_POS | SIF_DISABLENOSCROLL,
                         0,
-                        std::max(0, y - 1),
-                        static_cast<UINT>(std::max(1, height_ - 52)),
+                        std::max(0, contentHeight_ - 1),
+                        static_cast<UINT>(std::max(1, height_)),
                         scroll_,
                         0 };
         SetScrollInfo(content_, SB_VERT, &info, TRUE);
@@ -534,18 +559,8 @@ namespace IceCream::App::Views
             bool same = activePage_ == id - 10;
             panelOpen_ = same ? !panelOpen_ : true;
             activePage_ = id - 10;
-            appearanceTab_ = activePage_ == 3;
-            expanded_ = { {false, false, false, true} };
-            if (activePage_ < 3)
-                expanded_[activePage_] = true;
             scroll_ = 0;
             Layout();
-            Notify();
-            return;
-        }
-        if (id >= 20 && id < 24)
-        {
-            panelOpen_ = false;
             Notify();
             return;
         }
@@ -647,7 +662,19 @@ namespace IceCream::App::Views
             {
                 HWND next = GetNextDlgTabItem(self->content_, window, GetKeyState(VK_SHIFT) < 0);
                 if (next)
+                {
+                    const auto item = self->positions_.find(next);
+                    if (item != self->positions_.end())
+                    {
+                        const int top = self->Logical(item->second.top);
+                        const int bottom = self->Logical(item->second.bottom);
+                        if (top < 0)
+                            self->Scroll(self->scroll_ + top - 6);
+                        else if (bottom > self->height_)
+                            self->Scroll(self->scroll_ + bottom - self->height_ + 6);
+                    }
                     SetFocus(next);
+                }
                 return 0;
             }
         }

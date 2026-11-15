@@ -276,8 +276,6 @@ namespace IceCream::App::Views
             }
 
             activePage_ = 0;
-            appearanceTab_ = false;
-            expanded_ = { {true, false, false, true} };
             constraintsOpen_ = !constraints.empty() && figure.Type != FigureType::Inequalities;
             scroll_ = 0;
             panelOpen_ = true;
@@ -285,12 +283,10 @@ namespace IceCream::App::Views
             Sync();
             syncing_ = false;
 
-            SetViewport(viewportX_, viewportY_, viewportWidth_, viewportHeight_);
             SetError(L"Фигура успешно загружена");
-            Layout();
-
             InvalidateRect(Control(914), nullptr, FALSE);
             Notify();
+            Layout();
         }
         catch (const exception&)
         {

@@ -1,4 +1,5 @@
 #include "ParametersPanel.h"
+#include "../WindowLayout.h"
 #include <GL/glew.h>
 #include <algorithm>
 #include <cmath>
@@ -11,6 +12,12 @@ namespace IceCream::App::Views
     using ViewModels::ColorRole;
     namespace
     {
+        HFONT CreatePanelFont(int size)
+        {
+            return CreateFontW(-size, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, 0, 0,
+                CLEARTYPE_QUALITY, 0, L"Segoe UI");
+        }
+
         COLORREF Color(const glm::vec4& c)
         {
             return RGB(int(c.r * 255), int(c.g * 255), int(c.b * 255));
@@ -21,6 +28,8 @@ namespace IceCream::App::Views
     } // namespace
     HWND ParametersPanel::Make(const wchar_t* cls, const wchar_t* text, int id, DWORD style)
     {
+        if (wcscmp(cls, L"BUTTON") == 0 && (style & BS_TYPEMASK) != BS_OWNERDRAW)
+            style |= BS_MULTILINE;
         HWND w = CreateWindowExW(wcscmp(cls, L"EDIT") == 0 ? WS_EX_CLIENTEDGE : 0, cls, text, WS_CHILD | style, 0, 0, 1, 1,
             content_, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), GetModuleHandleW(nullptr),
             nullptr);
@@ -33,6 +42,13 @@ namespace IceCream::App::Views
             bool bound = field >= 4 && field <= 9;
             SendMessageW(w, EM_SETLIMITTEXT, id == 903 || id == 918 ? 4096 : bound ? 2048 : id >= 1000 || id == 904 ? 512 : 64, 0);
             SetWindowSubclass(w, EditProcedure, 1, reinterpret_cast<DWORD_PTR>(this));
+        }
+        else if (wcscmp(cls, TRACKBAR_CLASSW) == 0)
+            SetWindowSubclass(w, SliderProcedure, 1, reinterpret_cast<DWORD_PTR>(this));
+        else if (wcscmp(cls, L"COMBOBOX") == 0)
+        {
+            comboBoxes_.push_back(w);
+            SetWindowSubclass(w, ComboProcedure, 1, 0);
         }
         controls_.push_back(w);
         return w;
@@ -47,11 +63,12 @@ namespace IceCream::App::Views
         changed_ = std::move(changed);
         resetSectionView_ = std::move(resetSectionView);
         parent_ = WindowFromDC(wglGetCurrentDC());
+        dpi_ = GetDpiForWindow(parent_);
         SetWindowLongPtrW(parent_, GWL_STYLE, GetWindowLongPtrW(parent_, GWL_STYLE) | WS_CLIPCHILDREN);
         INITCOMMONCONTROLSEX common{ sizeof(common), ICC_BAR_CLASSES };
         InitCommonControlsEx(&common);
-        font_ = CreateFontW(-16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0,
-            L"Segoe UI");
+        fontSize_ = Pixels(model_->Appearance().TextSize);
+        font_ = CreatePanelFont(fontSize_);
         WNDCLASSW cls{};
         cls.lpfnWndProc = Procedure;
         cls.hInstance = GetModuleHandleW(nullptr);
@@ -60,9 +77,9 @@ namespace IceCream::App::Views
         RegisterClassW(&cls);
         panel_ =
             CreateWindowExW(WS_EX_CONTROLPARENT | WS_EX_COMPOSITED, cls.lpszClassName, L"Параметры",
-                WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN, 0, 0, 400, 800, parent_, nullptr, cls.hInstance, this);
+                WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN, 0, 0, 1, 1, parent_, nullptr, cls.hInstance, this);
         content_ = CreateWindowExW(WS_EX_CONTROLPARENT, cls.lpszClassName, L"Блоки параметров",
-            WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_CLIPCHILDREN, 0, 48, 400, 752, panel_, nullptr,
+            WS_CHILD | WS_VSCROLL | WS_CLIPCHILDREN, 0, 0, 1, 1, panel_, nullptr,
             cls.hInstance, this);
         for (int i = 0; i < 4; ++i)
         {
@@ -75,9 +92,6 @@ namespace IceCream::App::Views
                 reinterpret_cast<HMENU>(static_cast<INT_PTR>(10 + i)), cls.hInstance, nullptr);
             SendMessageW(b, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
         }
-        const wchar_t* groups[] = { L"Фигура", L"Сечение", L"Свет", L"Вид и цвета" };
-        for (int i = 0; i < 4; ++i)
-            Make(L"BUTTON", groups[i], 20 + i, WS_TABSTOP | BS_PUSHBUTTON);
         for (int i = 0; i < 6; ++i)
         {
             Make(L"EDIT", L"0", 200 + i, WS_TABSTOP | ES_AUTOHSCROLL);
@@ -100,12 +114,15 @@ namespace IceCream::App::Views
             SendMessageW(Control(400), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(s));
         SendMessageW(Control(400), CB_SETCURSEL, 0, 0);
         Make(L"BUTTON", L"Показывать подсказки", 401, WS_TABSTOP | BS_AUTOCHECKBOX);
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < 3; ++i)
             Make(TRACKBAR_CLASSW, L"", 402 + i, WS_TABSTOP | TBS_HORZ | TBS_NOTICKS);
         SendMessageW(Control(402), TBM_SETRANGE, TRUE, MAKELPARAM(10, 24));
         SendMessageW(Control(402), TBM_SETPOS, TRUE, 14);
         SendMessageW(Control(403), TBM_SETRANGE, TRUE, MAKELPARAM(12, 36));
         SendMessageW(Control(403), TBM_SETPOS, TRUE, 20);
+        SendMessageW(Control(404), TBM_SETRANGE, TRUE,
+            MAKELPARAM(ViewModels::AppearanceSettings::MinTextSize, ViewModels::AppearanceSettings::MaxTextSize));
+        SendMessageW(Control(404), TBM_SETPOS, TRUE, model_->Appearance().TextSize);
         for (int i = 0; i < 14; ++i)
             Make(L"BUTTON", colorNames[i], 500 + i, WS_TABSTOP | BS_OWNERDRAW);
         for (int i = 0; i < 256; ++i)
@@ -115,12 +132,12 @@ namespace IceCream::App::Views
         Make(L"BUTTON", L"Открыть фигуру", 922, WS_TABSTOP);
         Make(L"BUTTON", L"+ Добавить часть", 901, WS_TABSTOP);
         Make(L"COMBOBOX", L"", 902, WS_TABSTOP | CBS_DROPDOWNLIST);
-        for (auto name : { L"Функции и интегралы", L"Неявная поверхность g(x, y, z) = 0", L"Тело по системе неравенств" })
+        for (auto name : { L"Функции и интегралы", L"Неявная поверхность", L"Тело по неравенствам" })
             SendMessageW(Control(902), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(name));
         SendMessageW(Control(902), CB_SETCURSEL, 0, 0);
         Make(L"EDIT", L"", 903, WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL);
         Make(L"EDIT", L"y^2<=2*x+2\r\n0<=z<=4-x", 918, WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL);
-        Make(L"BUTTON", L"Автоматически подбирать границы", 919, WS_TABSTOP | BS_AUTOCHECKBOX);
+        Make(L"BUTTON", L"Автоподбор границ", 919, WS_TABSTOP | BS_AUTOCHECKBOX);
         Make(L"BUTTON", L"Оценить границы", 920, WS_TABSTOP);
         Make(L"EDIT", L"x^2+y^2+z^2=9", 904, WS_TABSTOP | ES_AUTOHSCROLL);
         for (int axis = 0; axis < 3; ++axis)
@@ -130,8 +147,8 @@ namespace IceCream::App::Views
             Make(L"EDIT", L"40", 907 + 3 * axis, WS_TABSTOP | ES_AUTOHSCROLL);
         }
         Make(L"BUTTON", L"Цвет поверхности", 914, WS_TABSTOP | BS_OWNERDRAW);
-        Make(L"BUTTON", L"+ Ограничения (для всей поверхности)", 916, WS_TABSTOP);
-        Make(L"BUTTON", L"Показывать поверхности ограничений", 917, WS_TABSTOP | BS_AUTOCHECKBOX);
+        Make(L"BUTTON", L"+ Ограничения поверхности", 916, WS_TABSTOP);
+        Make(L"BUTTON", L"Поверхности ограничений", 917, WS_TABSTOP | BS_AUTOCHECKBOX);
         SendMessageW(Control(917), BM_SETCHECK, BST_CHECKED, 0);
         for (int part = 0; part < 8; ++part)
         {
@@ -139,7 +156,7 @@ namespace IceCream::App::Views
             for (int k : {0, 1, 4, 5, 6, 7, 8, 9})
                 Make(L"EDIT", L"", id + k, WS_TABSTOP | ES_AUTOHSCROLL);
             Make(L"COMBOBOX", L"", id + 2, WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL);
-            for (auto name : { L"Декартовы (x, y, z)", L"Цилиндрические (r, phi, z)", L"Полярные: z=f(r, phi)" })
+            for (auto name : { L"Декартовы (x, y, z)", L"Цилиндрические", L"Полярные: z=f(r, phi)" })
                 SendMessageW(Control(id + 2), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(name));
             Make(L"COMBOBOX", L"", id + 3, WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL);
             Make(L"BUTTON", L"Цвет функции", id + 10, WS_TABSTOP | BS_OWNERDRAW);
@@ -155,7 +172,6 @@ namespace IceCream::App::Views
         Make(L"STATIC", L"", 801, SS_LEFT);
         Theme();
         Sync();
-        Layout();
     }
     void ParametersPanel::Destroy()
     {
@@ -169,11 +185,14 @@ namespace IceCream::App::Views
             DeleteObject(font_);
         if (hintFont_)
             DeleteObject(hintFont_);
+        if (tabFont_)
+            DeleteObject(tabFont_);
         if (background_)
             DeleteObject(background_);
         if (fieldBrush_)
             DeleteObject(fieldBrush_);
         controls_.clear();
+        comboBoxes_.clear();
         positions_.clear();
     }
     void ParametersPanel::Theme()
@@ -186,29 +205,88 @@ namespace IceCream::App::Views
         background_ = CreateSolidBrush(Color(a.Color(ColorRole::Panel)));
         fieldBrush_ = CreateSolidBrush(a.LightTheme ? RGB(255, 255, 255) : RGB(42, 49, 62));
         RefreshTextSizes();
-        InvalidateRect(panel_, nullptr, TRUE);
-        InvalidateRect(content_, nullptr, TRUE);
-        for (auto w : controls_)
-            InvalidateRect(w, nullptr, TRUE);
+        RedrawWindow(panel_, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     }
-    void ParametersPanel::SetViewport(int x, int y, int width, int height)
+    void ParametersPanel::RefreshFonts()
     {
-        if (viewportX_ == x && viewportY_ == y && viewportWidth_ == width && viewportHeight_ == height &&
-            viewportOpen_ == panelOpen_)
+        const int textSize = model_->Appearance().TextSize;
+        const int mainPixels = Pixels(textSize);
+        if (fontSize_ != mainPixels || !font_)
+        {
+            if (HFONT next = CreatePanelFont(mainPixels))
+            {
+                const HWND hint = Control(800);
+                for (HWND child : controls_)
+                    if (child != hint)
+                        SendMessageW(child, WM_SETFONT, reinterpret_cast<WPARAM>(next), FALSE);
+                HDC dc = GetDC(content_);
+                const auto previous = SelectObject(dc, next);
+                TEXTMETRICW metric{};
+                GetTextMetricsW(dc, &metric);
+                SelectObject(dc, previous);
+                ReleaseDC(content_, dc);
+                for (HWND combo : comboBoxes_)
+                {
+                    SendMessageW(combo, CB_SETITEMHEIGHT, 0, metric.tmHeight + Pixels(4));
+                    SendMessageW(combo, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), metric.tmHeight + Pixels(4));
+                }
+                DeleteObject(font_);
+                font_ = next;
+                fontSize_ = mainPixels;
+            }
+        }
+        const int tabPixels = Pixels(std::clamp(Logical(viewportTabsWidth_) / 18, ViewModels::AppearanceSettings::MinTextSize, textSize));
+        if (tabFontSize_ != tabPixels || !tabFont_)
+        {
+            if (HFONT next = CreatePanelFont(tabPixels))
+            {
+                for (int i = 0; i < 4; ++i)
+                    SendMessageW(GetDlgItem(panel_, 10 + i), WM_SETFONT, reinterpret_cast<WPARAM>(next), FALSE);
+                DeleteObject(tabFont_);
+                tabFont_ = next;
+                tabFontSize_ = tabPixels;
+            }
+        }
+        RefreshTextSizes();
+    }
+    void ParametersPanel::SetViewport(int width, int height, int tabsWidth, int dpi)
+    {
+        if (viewportWidth_ == width && viewportHeight_ == height && viewportTabsWidth_ == tabsWidth &&
+            viewportOpen_ == panelOpen_ && dpi_ == dpi)
             return;
-        viewportX_ = x;
-        viewportY_ = y;
         viewportWidth_ = width;
         viewportHeight_ = height;
+        viewportTabsWidth_ = tabsWidth;
         viewportOpen_ = panelOpen_;
-        width_ = width;
-        height_ = height;
-        MoveWindow(panel_, x, y, width, panelOpen_ ? height : 52, TRUE);
+        dpi_ = dpi;
+        RefreshFonts();
+        const int toolbar = std::min(height, Pixels(WindowLayout::ToolbarHeight));
+        if (!panelOpen_)
+        {
+            if (IsChild(content_, GetFocus()))
+                SetFocus(GetDlgItem(panel_, 10 + activePage_));
+            ShowWindow(content_, SW_HIDE);
+        }
+        MoveWindow(panel_, 0, 0, width, height, TRUE);
+        const int margin = Pixels(8), gap = Pixels(4);
+        const int space = std::max(0, tabsWidth - 2 * margin + gap);
         for (int i = 0; i < 4; ++i)
-            MoveWindow(GetDlgItem(panel_, 10 + i), 8 + i * (width - 16) / 4, 8, (width - 24) / 4, 32, TRUE);
-        MoveWindow(content_, 0, 52, width, height - 52, TRUE);
-        ShowWindow(content_, panelOpen_ ? SW_SHOW : SW_HIDE);
-        Layout();
+        {
+            const int left = margin + space * i / 4;
+            const int right = margin + space * (i + 1) / 4 - gap;
+            MoveWindow(GetDlgItem(panel_, 10 + i), left, margin, std::max(0, right - left),
+                std::max(0, toolbar - 2 * margin), TRUE);
+        }
+        MoveWindow(content_, 0, toolbar, width, height - toolbar, panelOpen_);
+        RECT client{};
+        GetClientRect(content_, &client);
+        width_ = Logical(client.right);
+        height_ = Logical(client.bottom);
+        if (panelOpen_)
+        {
+            Layout();
+            ShowWindow(content_, SW_SHOWNA);
+        }
     }
     void ParametersPanel::Render(const ViewModels::MainViewModel&)
     {
@@ -236,7 +314,11 @@ namespace IceCream::App::Views
     }
     void ParametersPanel::SetError(const wchar_t* message)
     {
+        if (status_ == message)
+            return;
+        status_ = message;
         SetText(801, message);
+        Layout();
     }
     double ParametersPanel::Number(int id) const
     {
@@ -323,15 +405,15 @@ namespace IceCream::App::Views
     void ParametersPanel::RefreshTextSizes()
     {
         const auto& a = model_->Appearance();
-        if (hintFontSize_ != a.HintSize || !hintFont_)
+        const int size = Pixels(a.HintSize);
+        if (hintFontSize_ != size || !hintFont_)
         {
-            HFONT next = CreateFontW(-a.HintSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, 0, 0,
-                CLEARTYPE_QUALITY, 0, L"Segoe UI");
+            HFONT next = CreatePanelFont(size);
             SendMessageW(Control(800), WM_SETFONT, reinterpret_cast<WPARAM>(next), TRUE);
             if (hintFont_)
                 DeleteObject(hintFont_);
             hintFont_ = next;
-            hintFontSize_ = a.HintSize;
+            hintFontSize_ = size;
         }
         if (activePage_ == 3)
         {
@@ -340,6 +422,8 @@ namespace IceCream::App::Views
             SetText(20000, text);
             swprintf_s(text, L"Размер координат: %d px", a.CoordinateSize);
             SetText(20001, text);
+            swprintf_s(text, L"Основной текст: %d px", a.TextSize);
+            SetText(20002, text);
         }
     }
     void ParametersPanel::QueueSlider(int id, bool finish)
@@ -347,6 +431,37 @@ namespace IceCream::App::Views
         if (syncing_)
             return;
         int value = static_cast<int>(SendMessageW(Control(id), TBM_GETPOS, 0, 0));
+        if (id == 404)
+        {
+            wchar_t label[64];
+            swprintf_s(label, L"Основной текст: %d px", value);
+            SetText(20002, label);
+            if (!finish && GetCapture() == Control(id))
+                return;
+            auto appearance = model_->Appearance();
+            if (appearance.TextSize != value)
+            {
+                // Keep the size slider in view when changing it in a scrolled panel.
+                if (scroll_ > 0)
+                {
+                    const auto bounds = positions_.find(Control(id));
+                    if (bounds != positions_.end())
+                    {
+                        constexpr int standard = ViewModels::AppearanceSettings::DefaultTextSize;
+                        const int top = Logical(bounds->second.top);
+                        scroll_ = std::max(0, MulDiv(scroll_ + top, std::max(standard, value),
+                            std::max(standard, appearance.TextSize)) - top);
+                    }
+                }
+                appearance.TextSize = value;
+                model_->SetAppearance(appearance);
+                RefreshFonts();
+                Layout();
+                RedrawWindow(panel_, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
+                Notify();
+            }
+            return;
+        }
         if (id >= 220 && id < 226)
         {
             pendingSection_[id - 220] = value / 10.0;
@@ -423,11 +538,83 @@ namespace IceCream::App::Views
     }
     void ParametersPanel::Scroll(int position)
     {
-        int next = std::clamp(position, 0, std::max(0, contentHeight_ - (height_ - 52)));
+        int next = std::clamp(position, 0, std::max(0, contentHeight_ - height_));
         if (next == scroll_)
             return;
         scroll_ = next;
         Layout();
+    }
+    void ParametersPanel::FitDropDown(HWND combo)
+    {
+        HDC dc = GetDC(combo);
+        const auto previous = SelectObject(dc, font_);
+        LONG longest = 0;
+        const int count = static_cast<int>(SendMessageW(combo, CB_GETCOUNT, 0, 0));
+        for (int i = 0; i < count; ++i)
+        {
+            const int length = static_cast<int>(SendMessageW(combo, CB_GETLBTEXTLEN, i, 0));
+            if (length <= 0)
+                continue;
+            std::wstring item(length + 1, L'\0');
+            SendMessageW(combo, CB_GETLBTEXT, i, reinterpret_cast<LPARAM>(item.data()));
+            SIZE size{};
+            GetTextExtentPoint32W(dc, item.c_str(), length, &size);
+            longest = std::max(longest, size.cx);
+        }
+        SelectObject(dc, previous);
+        ReleaseDC(combo, dc);
+        MONITORINFO info{};
+        info.cbSize = sizeof(info);
+        GetMonitorInfoW(MonitorFromWindow(combo, MONITOR_DEFAULTTONEAREST), &info);
+        const LONG available = info.rcWork.right - info.rcWork.left;
+        SendMessageW(combo, CB_SETDROPPEDWIDTH, std::min(longest + Pixels(30), available), 0);
+    }
+    LRESULT CALLBACK ParametersPanel::ComboProcedure(HWND window, UINT msg, WPARAM w, LPARAM l, UINT_PTR id, DWORD_PTR)
+    {
+        if (msg == WM_MOUSEWHEEL && !SendMessageW(window, CB_GETDROPPEDSTATE, 0, 0))
+            return DefWindowProcW(window, msg, w, l);
+        if (msg == WM_NCDESTROY)
+            RemoveWindowSubclass(window, ComboProcedure, id);
+        return DefSubclassProc(window, msg, w, l);
+    }
+    LRESULT CALLBACK ParametersPanel::SliderProcedure(HWND window, UINT msg, WPARAM w, LPARAM l, UINT_PTR id, DWORD_PTR data)
+    {
+        auto& self = *reinterpret_cast<ParametersPanel*>(data);
+        auto paint = [&](HDC dc)
+        {
+            RECT bounds{}, channel{}, thumb{};
+            GetClientRect(window, &bounds);
+            SendMessageW(window, TBM_GETCHANNELRECT, 0, reinterpret_cast<LPARAM>(&channel));
+            SendMessageW(window, TBM_GETTHUMBRECT, 0, reinterpret_cast<LPARAM>(&thumb));
+            FillRect(dc, &bounds, self.background_);
+            const auto& appearance = self.model_->Appearance();
+            const auto brush = static_cast<HBRUSH>(GetStockObject(DC_BRUSH));
+            SetDCBrushColor(dc, Color(appearance.Color(ColorRole::Grid)));
+            FillRect(dc, &channel, brush);
+            SetDCBrushColor(dc, Color(appearance.Color(ColorRole::Slider)));
+            FillRect(dc, &thumb, brush);
+            if (GetFocus() == window && !(SendMessageW(window, WM_QUERYUISTATE, 0, 0) & UISF_HIDEFOCUS))
+                DrawFocusRect(dc, &bounds);
+        };
+        if (msg == WM_ERASEBKGND)
+            return 1;
+        if (msg == WM_PRINTCLIENT)
+        {
+            paint(reinterpret_cast<HDC>(w));
+            return 0;
+        }
+        if (msg == WM_PAINT)
+        {
+            PAINTSTRUCT ps{};
+            paint(BeginPaint(window, &ps));
+            EndPaint(window, &ps);
+            return 0;
+        }
+        if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS)
+            InvalidateRect(window, nullptr, FALSE);
+        if (msg == WM_NCDESTROY)
+            RemoveWindowSubclass(window, SliderProcedure, id);
+        return DefSubclassProc(window, msg, w, l);
     }
     LRESULT CALLBACK ParametersPanel::Procedure(HWND window, UINT msg, WPARAM w, LPARAM l)
     {
@@ -444,7 +631,14 @@ namespace IceCream::App::Views
             if (msg == WM_COMMAND)
             {
                 if (!self->syncing_)
-                    self->Command(LOWORD(w), HIWORD(w));
+                {
+                    const HWND source = reinterpret_cast<HWND>(l);
+                    if (HIWORD(w) == CBN_DROPDOWN &&
+                        std::find(self->comboBoxes_.begin(), self->comboBoxes_.end(), source) != self->comboBoxes_.end())
+                        self->FitDropDown(source);
+                    else
+                        self->Command(LOWORD(w), HIWORD(w));
+                }
                 return 0;
             }
             if (msg == WM_HSCROLL && l)
@@ -457,25 +651,6 @@ namespace IceCream::App::Views
             {
                 self->FlushSliders();
                 return 0;
-            }
-            if (msg == WM_NOTIFY)
-            {
-                auto* n = reinterpret_cast<NMHDR*>(l);
-                if (n->code == NM_CUSTOMDRAW)
-                {
-                    auto* draw = reinterpret_cast<NMCUSTOMDRAW*>(l);
-                    if (draw->dwDrawStage == CDDS_PREPAINT)
-                        return CDRF_NOTIFYITEMDRAW;
-                    if (draw->dwDrawStage == CDDS_ITEMPREPAINT &&
-                        (draw->dwItemSpec == TBCD_THUMB || draw->dwItemSpec == TBCD_CHANNEL))
-                    {
-                        auto role = draw->dwItemSpec == TBCD_THUMB ? ColorRole::Slider : ColorRole::Grid;
-                        HBRUSH brush = CreateSolidBrush(Color(self->model_->Appearance().Color(role)));
-                        FillRect(draw->hdc, &draw->rc, brush);
-                        DeleteObject(brush);
-                        return CDRF_SKIPDEFAULT;
-                    }
-                }
             }
             if (msg == WM_VSCROLL)
             {
@@ -493,10 +668,10 @@ namespace IceCream::App::Views
                     p += 32;
                     break;
                 case SB_PAGEUP:
-                    p -= self->height_ - 100;
+                    p -= std::max(32, self->height_ - 32);
                     break;
                 case SB_PAGEDOWN:
-                    p += self->height_ - 100;
+                    p += std::max(32, self->height_ - 32);
                     break;
                 case SB_THUMBTRACK:
                     p = s.nTrackPos;
@@ -507,7 +682,16 @@ namespace IceCream::App::Views
             }
             if (msg == WM_MOUSEWHEEL)
             {
-                self->Scroll(self->scroll_ - GET_WHEEL_DELTA_WPARAM(w) / WHEEL_DELTA * 80);
+                const POINT point{static_cast<short>(LOWORD(l)), static_cast<short>(HIWORD(l))};
+                const HWND hovered = WindowFromPoint(point);
+                if (hovered == self->parent_)
+                    return DefWindowProcW(window, msg, w, l);
+                if (hovered != self->content_ && !IsChild(self->content_, hovered))
+                    return 0;
+                for (HWND combo : self->comboBoxes_)
+                    if (combo == hovered || IsChild(combo, hovered))
+                        return 0;
+                self->Scroll(self->scroll_ - MulDiv(GET_WHEEL_DELTA_WPARAM(w), 80, WHEEL_DELTA));
                 return 0;
             }
             if (msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORBTN)
