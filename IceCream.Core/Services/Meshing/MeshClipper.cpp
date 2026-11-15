@@ -63,7 +63,7 @@ namespace IceCream::Core::Services
             if (a == b || b == c || c == a) return;
             if (Degenerate(vertices[a], vertices[b], vertices[c])) return;
             if (faces.size() >= limit) throw length_error("MeshClipper превысил максимальное количество треугольников");
-            faces.push_back({ a, b, c });
+            faces.push_back({ {{ a, b, c }}, source });
         }
 
         bool ShouldRefine(const Face& face, const vector<Point3D>& vertices, const InequalityRegion& region, double maxEdgeLength)

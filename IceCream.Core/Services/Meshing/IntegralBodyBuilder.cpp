@@ -144,6 +144,11 @@ namespace IceCream::Core::Services
 
         if (source.Definition == PartDefinition::Function)
         {
+            if (source.Function.empty() || source.Function.size() > 512)
+            {
+                throw invalid_argument("Формула должна содержать от 1 до 512 символов.");
+            }
+
             if (source.DependentAxis < 0 || source.DependentAxis > 2 ||
                 (source.Coordinates != CoordinateSystem::Cartesian && source.DependentAxis != 2))
             {
@@ -176,8 +181,8 @@ namespace IceCream::Core::Services
             part.Order = source.FunctionOrder();
             int axis = part.Order[2];
 
-            string lower = part.AboveFunction ? source.Function : part.Base;
-            string upper = part.AboveFunction ? part.Base : source.Function;
+            string lower = "min((" + source.Function + "),(" + part.Base + "))";
+            string upper = "max((" + source.Function + "),(" + part.Base + "))";
 
             if (!source.DependentLower.empty())
             {
@@ -313,7 +318,7 @@ namespace IceCream::Core::Services
                             }
                         }
 
-                        return Profiles::CompileSpatialExpression(text, { 3, 1, 0.5, 1.2 });
+                        return Profiles::CompileSpatialExpression(text, { 3, 1, 0.5, 1.2 }, available != Dimensions);
                     };
 
                 Function = compile(part.Function, Dimensions);
@@ -360,7 +365,12 @@ namespace IceCream::Core::Services
 
                     if (b < a - 1e-10)
                     {
-                        throw invalid_argument("Нижняя граница интегрирования не должна превышать верхнюю.");
+                        const char* axes[] = { "x", "y", "z" };
+                        const char* radial[] = { "r", "phi", "z" };
+
+                        const char* axis = Part.Coordinates == CoordinateSystem::Cartesian ? axes[k] : radial[k];
+
+                        throw invalid_argument("Границы по " + string(axis) + " перепутаны: нижняя превышает верхнюю.");
                     }
 
                     if (Part.Coordinates != CoordinateSystem::Cartesian && k == 0 && a < 0.0)
@@ -535,7 +545,14 @@ namespace IceCream::Core::Services
                 }
             }
 
-            compiled.emplace_back(part);
+            try
+            {
+                compiled.emplace_back(part);
+            }
+            catch (const exception& e)
+            {
+                throw invalid_argument("Часть «" + part.Name + "»: " + e.what());
+            }
         }
 
         // Соприкасающиеся части объединяются по общим граням.
@@ -739,7 +756,7 @@ namespace IceCream::Core::Services
             }
             catch (const exception& e)
             {
-                throw invalid_argument("Часть " + to_string(part + 1) + ": " + e.what());
+                throw invalid_argument("Часть " + to_string(part + 1) + " («" + parts[part].Name + "»): " + e.what());
             }
         }
 

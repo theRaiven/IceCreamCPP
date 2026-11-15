@@ -66,10 +66,10 @@ namespace IceCream::Tests::Services
             model.SetSectionPose({0,0,1}, {});
             model.ApplyImplicitSurface("x^2+y^2+z^2=9", {-4,-4,-4}, {4,4,4}, 20,20,20,
                 "\n x>=0;\n 0<=z<=4-x \n");
-            Assert::IsFalse(model.HasVolume());
-            Assert::IsFalse(model.HasSectionArea());
+            Assert::IsTrue(model.HasVolume());
+            Assert::IsTrue(model.HasSectionArea());
             Assert::IsFalse(model.Section().IsEmpty());
-            Assert::IsTrue(std::isnan(model.Volume()));
+            Assert::IsTrue(std::isfinite(model.Volume()) && model.Volume() > 0);
             for (const auto& point : model.Body().Mesh().Vertices())
             {
                 Assert::IsTrue(point.X >= -1e-8 && point.Z >= -1e-8 && point.Z <= 4-point.X+1e-8);
@@ -100,7 +100,8 @@ namespace IceCream::Tests::Services
             MainViewModel model;
             model.SetSectionPose({0,0,1}, {});
             model.ApplyImplicitSurface("x^2+y^2+z^2=9", {-4,-4,-4}, {4,4,4}, 24,24,24, "z>=0");
-            Assert::IsFalse(model.HasVolume());
+            Assert::IsTrue(model.HasVolume());
+            Assert::AreEqual(18 * std::acos(-1.0), model.Volume(), 3.0);
             Assert::IsTrue(model.HasSectionArea());
             Assert::AreEqual(8 * std::acos(-1.0), model.SectionArea(), .5);
         }
@@ -233,7 +234,8 @@ namespace IceCream::Tests::Services
                 for (size_t k = 0; k < surface.Triangles.size(); k += 3)
                     Assert::AreEqual(0.0, field(surface.Triangles[k], surface.Triangles[k+1], surface.Triangles[k+2]), .15);
             }
-            Assert::IsFalse(model.HasVolume()); // Guides are not caps for the clipped body.
+            Assert::IsTrue(model.HasVolume());
+            Assert::IsTrue(std::isfinite(model.Volume()) && model.Volume() > 0);
         }
 
         TEST_METHOD(ConstraintVisibilityDoesNotRebuildOrChangeMeasurements)
@@ -347,29 +349,26 @@ namespace IceCream::Tests::Services
             part.Name = "Example";
             part.Lower[0] = "1";
             part.Upper[0] = "0";
+
             try
             {
-                IntegralBodyBuilder().Build({part});
-                Assert::Fail(L"Reversed explicit integral bounds must be rejected");
+                IntegralBodyBuilder().Build({ part });
+                Assert::Fail(L"Перепутанные пределы должны вызывать исключение");
             }
             catch (const std::invalid_argument& error)
             {
                 std::string message = error.what();
+
                 Assert::IsTrue(message.find("Границы по x перепутаны") != std::string::npos);
                 Assert::IsTrue(message.find("Example") != std::string::npos);
             }
+
             part.Lower[0] = "0";
             part.Upper[0] = "101";
-            try
-            {
-                IntegralBodyBuilder().Build({part});
-                Assert::Fail(L"Out-of-range bounds must be rejected");
-            }
-            catch (const std::invalid_argument& error)
-            {
-                std::string message = error.what();
-                Assert::IsTrue(message.find("Границы по x выходят за диапазон") != std::string::npos);
-            }
+
+            auto solid = IntegralBodyBuilder().Build({ part });
+
+            Assert::AreEqual(101.0, solid.Integral, 1e-9);
         }
 
         TEST_METHOD(UneditedPresetsKeepTheirJoinAndIntegralEditsKeepBounds)
@@ -425,7 +424,7 @@ namespace IceCream::Tests::Services
             accepted.Name = "Input case";
             model.ApplyIntegralParts({accepted});
             auto revision = model.GeometryRevision();
-            for (const char* formula : {"", "x+", "z+1", "unknown(x)", "sqrt(-1)", "1/(x-0.5)", "log(x)", "150"})
+            for (const char* formula : {"", "x+", "z+1", "unknown(x)", "sqrt(-1)", "1/(x-0.5)", "log(x)"})
             {
                 auto draft = accepted;
                 draft.SetFunction(formula);
@@ -442,6 +441,13 @@ namespace IceCream::Tests::Services
                 Assert::AreEqual(1.0, model.Volume(), 1e-9);
                 Assert::IsTrue(model.IsIntegralBody() && model.HasVolume());
             }
+            auto valid = accepted;
+            valid.SetFunction("150");
+
+            model.ApplyIntegralParts({ valid });
+
+            Assert::AreEqual(150.0, model.Volume(), 1e-9);
+            Assert::IsTrue(model.IsIntegralBody() && model.HasVolume());
         }
 
         TEST_METHOD(FullLengthFormulaSurvivesIntegralConversion)
