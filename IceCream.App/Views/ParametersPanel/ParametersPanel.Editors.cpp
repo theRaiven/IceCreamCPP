@@ -10,6 +10,7 @@ namespace IceCream::App::Views
     {
         if (!content_)
             return;
+
         HWND focus = GetFocus();
         std::map<HWND, RECT> desired;
         int y = 12, label = 20000;
@@ -37,12 +38,21 @@ namespace IceCream::App::Views
             };
         if (!appearanceTab_)
         {
+
             if (activePage_ == 0)
             {
                 place(902, 20, y, right - 20, 160);
                 y += 44;
+
                 place(900, 20, y, right - 20, 34);
                 y += 42;
+
+                place(921, 20, y, right - 20, 34);
+                y += 42;
+
+                place(922, 20, y, right - 20, 34);
+                y += 42;
+
                 place(801, 20, y, right - 20, 48);
                 y += 54;
                 if (geometryMode_ == 2)
@@ -467,6 +477,17 @@ namespace IceCream::App::Views
     }
     void ParametersPanel::Command(int id, int notification)
     {
+        if (id == 922 && notification == BN_CLICKED)
+        {
+            OpenFigure();
+            return;
+        }
+
+        if (id == 921 && notification == BN_CLICKED)
+        {
+            SaveFigure();
+            return;
+        }
         if (id == 920 && notification == BN_CLICKED)
         {
             EstimateBounds();

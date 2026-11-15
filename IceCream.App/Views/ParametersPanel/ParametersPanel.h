@@ -6,6 +6,7 @@
 #include <windows.h>
 
 #include "../../ViewModels/MainViewModel.h"
+#include "../../../IceCream.Core/Services/SaveData/FigureData.h"
 #include <array>
 #include <commctrl.h>
 #include <functional>
@@ -68,6 +69,10 @@ namespace IceCream::App::Views
         void Command(int id, int notification);
         static LRESULT CALLBACK Procedure(HWND, UINT, WPARAM, LPARAM);
         static LRESULT CALLBACK EditProcedure(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
+
+        void OpenFigure();
+        void SaveFigure();
+        Core::Services::SaveData::FigureData CaptureFigure();
 
     public:
         int OccupiedWidth() const

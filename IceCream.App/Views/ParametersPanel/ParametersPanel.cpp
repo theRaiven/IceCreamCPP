@@ -111,6 +111,8 @@ namespace IceCream::App::Views
         for (int i = 0; i < 256; ++i)
             Make(L"STATIC", L"", 20000 + i, SS_LEFT);
         Make(L"BUTTON", L"Построить", 900, WS_TABSTOP);
+        Make(L"BUTTON", L"Сохранить фигуру", 921, WS_TABSTOP);
+        Make(L"BUTTON", L"Открыть фигуру", 922, WS_TABSTOP);
         Make(L"BUTTON", L"+ Добавить часть", 901, WS_TABSTOP);
         Make(L"COMBOBOX", L"", 902, WS_TABSTOP | CBS_DROPDOWNLIST);
         for (auto name : { L"Функции и интегралы", L"Неявная поверхность g(x, y, z) = 0", L"Тело по системе неравенств" })

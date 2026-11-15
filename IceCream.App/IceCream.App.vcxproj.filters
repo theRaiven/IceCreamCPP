@@ -51,6 +51,7 @@
       <Filter>Views</Filter>
     </ClCompile>
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.Lighting.cpp" />
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Storage.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ViewModels\AppearanceSettings.h">

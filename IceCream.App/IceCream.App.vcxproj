@@ -90,6 +90,7 @@
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.cpp" />
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.Editors.cpp" />
     <ClCompile Include="Views\ParametersPanel\ParametersPanel.Input.cpp" />
+    <ClCompile Include="Views\ParametersPanel\ParametersPanel.Storage.cpp" />
     <ClCompile Include="Views\SceneView.cpp" />
     <ClCompile Include="Views\SectionView.cpp" />
   </ItemGroup>
