@@ -41,6 +41,8 @@
       <ConformanceMode>true</ConformanceMode>
       <ExceptionHandling>Sync</ExceptionHandling>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)ThirdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)ThirdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -62,6 +64,8 @@
     <ClCompile Include="Models\IceCreamBody.cpp" />
     <ClCompile Include="Services\Meshing\InequalityBodyBuilder.cpp" />
     <ClCompile Include="Services\Meshing\MeshClipper.cpp" />
+    <ClCompile Include="Services\SaveData\FigureFileService.cpp" />
+    <ClCompile Include="Services\SaveData\FigureSerializer.cpp" />
     <ClCompile Include="Services\Sections\SectionContour.cpp" />
     <ClCompile Include="Services\Sections\SectionResult.cpp" />
     <ClCompile Include="Profiles\Composite\CompositeProfile.cpp" />
@@ -94,6 +98,9 @@
     <ClInclude Include="Services\Meshing\InequalityBodyBuilder.h" />
     <ClInclude Include="Services\Meshing\MarchingCubesTables.h" />
     <ClInclude Include="Services\Meshing\MeshClipper.h" />
+    <ClInclude Include="Services\SaveData\FigureData.h" />
+    <ClInclude Include="Services\SaveData\FigureFileService.h" />
+    <ClInclude Include="Services\SaveData\FigureSerializer.h" />
     <ClInclude Include="Services\Sections\SectionContour.h" />
     <ClInclude Include="Services\Sections\SectionResult.h" />
     <ClInclude Include="Profiles\Composite\CompositeProfile.h" />

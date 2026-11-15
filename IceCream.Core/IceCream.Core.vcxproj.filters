@@ -74,6 +74,8 @@
     <ClCompile Include="Services\Meshing\ImplicitSurfaceBuilder.cpp" />
     <ClCompile Include="Services\Meshing\MeshClipper.cpp" />
     <ClCompile Include="Services\Meshing\InequalityBodyBuilder.cpp" />
+    <ClCompile Include="Services\SaveData\FigureSerializer.cpp" />
+    <ClCompile Include="Services\SaveData\FigureFileService.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Geometry\Primitives\Plane3D.h">
@@ -143,5 +145,8 @@
     <ClInclude Include="Services\Meshing\MarchingCubesTables.h" />
     <ClInclude Include="Services\Meshing\MeshClipper.h" />
     <ClInclude Include="Services\Meshing\InequalityBodyBuilder.h" />
+    <ClInclude Include="Services\SaveData\FigureData.h" />
+    <ClInclude Include="Services\SaveData\FigureSerializer.h" />
+    <ClInclude Include="Services\SaveData\FigureFileService.h" />
   </ItemGroup>
 </Project>
