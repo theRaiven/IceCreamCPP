@@ -17,7 +17,7 @@
 #include <vector>
 
 using namespace std;
-
+// вероятно такова воля монолита
 namespace IceCream::Core::Services
 {
     IntegralPart IntegralBodyBuilder::WithDependentAxis(const IntegralPart& source, int axis)
@@ -428,8 +428,6 @@ namespace IceCream::Core::Services
                 double thickness = 0.0;
                 Values q = Map(t, nullptr, &thickness);
 
-                // Убираем численную щель на границе нулевой толщины только в геометрии.
-                // Интегрирование продолжает использовать исходные функции.
                 if (Graph && abs(thickness) < 1e-7)
                 {
                     int axis = Part.Order[2];
@@ -528,8 +526,6 @@ namespace IceCream::Core::Services
             double AngleEnd;
         };
 
-        // Recognize only full, concentric polar/cylindrical disks in a constant-Z plane.
-        // Arbitrary profiles, sectors and non-planar joins still use the old mesh path.
         optional<RadialCap> FindRadialCap(const Compiled& part, size_t index, int side)
         {
             if (!part.Graph || part.Part.Coordinates != CoordinateSystem::Cylindrical ||

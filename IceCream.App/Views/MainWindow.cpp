@@ -76,16 +76,20 @@ namespace IceCream::App::Views
         {
             HINSTANCE instance = GetModuleHandleW(nullptr);
 
-            HICON largeIcon = static_cast<HICON>(LoadImageW(
-                instance, MAKEINTRESOURCEW(IDI_ICECREAM), IMAGE_ICON,
-                GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0));
+            HICON largeIcon = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(IDI_ICECREAM), IMAGE_ICON,
+                GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_SHARED));
 
-            HICON smallIcon = static_cast<HICON>(LoadImageW(
-                instance, MAKEINTRESOURCEW(IDI_ICECREAM), IMAGE_ICON,
-                GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
+            HICON smallIcon = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(IDI_ICECREAM), IMAGE_ICON,
+                GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_SHARED));
 
-            if (largeIcon) SendMessageW(window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
-            if (smallIcon) SendMessageW(window, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+            if (largeIcon && smallIcon)
+            {
+                SendMessageW(window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+                SendMessageW(window, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+
+                SetClassLongPtrW(window, GCLP_HICON, reinterpret_cast<LONG_PTR>(largeIcon));
+                SetClassLongPtrW(window, GCLP_HICONSM, reinterpret_cast<LONG_PTR>(smallIcon));
+            }
         }
 
 
