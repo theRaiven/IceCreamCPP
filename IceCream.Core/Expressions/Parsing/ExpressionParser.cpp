@@ -240,14 +240,19 @@ namespace IceCream::Core::Expressions
                     Error("Unexpected character");
                 }
 
-                // Координаты
+                // Декартовы координаты
                 if (name == "x") return [](double x, double, double) { return x; };
                 if (name == "y") return [](double, double y, double) { return y; };
                 if (name == "z") return [](double, double, double z) { return z; };
+
                 // Полярные и цилиндрические координаты
                 if (name == "r") return [](double x, double y, double) { return std::hypot(x, y); };
-                if (name == "phi") return [](double x, double y, double) { return x == 0.0 && y == 0.0 ? 0.0 : std::atan2(y, x); };
+                if (name == "phi" || name == "pfi") return [](double x, double y, double) { return std::atan2(y, x); };
 
+                // Сферические координаты
+                if (name == "rho") return [](double x, double y, double z) { return std::hypot(std::hypot(x, y), z); };
+                if (name == "psi") return [](double x, double y, double z) { return std::atan2(std::hypot(x, y), z); };
+               
 
                 // Число Пи
                 if (name == "pi")
