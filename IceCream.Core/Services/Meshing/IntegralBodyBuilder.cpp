@@ -522,9 +522,9 @@ namespace IceCream::Core::Services
             throw invalid_argument("Количество частей тела должно быть от 1 до 8.");
         }
 
-        if (n < 4 || n > 64)
+        if (n < 4 || n > 128)
         {
-            throw invalid_argument("Количество разбиений геометрической сетки должно быть от 4 до 64.");
+            throw invalid_argument("Количество разбиений геометрической сетки должно быть от 4 до 128.");
         }
 
         if (intervals < 4 || intervals > 128 || intervals % 2 != 0)
