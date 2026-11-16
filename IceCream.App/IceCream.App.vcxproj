@@ -120,7 +120,7 @@
     <None Include="Views\Shaders\Mesh.frag" />
     <None Include="Views\Shaders\Mesh.vert" />
   </ItemGroup>
-</Project>
+
   <ItemGroup>
     <Image Include="Resources\IceCream.ico" />
   </ItemGroup>

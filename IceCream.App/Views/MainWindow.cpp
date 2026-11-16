@@ -104,7 +104,7 @@ namespace IceCream::App::Views
 
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_MULTISAMPLE);
-        HWND window = WindowFromDC(wglGetCurrentDC());
+        window = WindowFromDC(wglGetCurrentDC());
         RECT bounds{};
         GetWindowRect(window, &bounds);
         PlaceWindow(window, bounds, work);

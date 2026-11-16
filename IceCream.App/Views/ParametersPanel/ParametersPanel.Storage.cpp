@@ -288,14 +288,20 @@ namespace IceCream::App::Views
             Notify();
             Layout();
         }
-        catch (const exception&)
+        catch (const exception& error)
         {
             syncing_ = false;
 
-            MessageBoxW(parent_,
-                L"Не удалось загрузить фигуру.\nФайл повреждён, содержит некорректные параметры или не может быть построен.",
-                L"Ошибка загрузки",
-                MB_OK | MB_ICONERROR);
+            int size = MultiByteToWideChar(CP_UTF8, 0, error.what(), -1, nullptr, 0);
+
+            wstring message(size > 0 ? size : 1, L'\0');
+
+            if (size > 0)
+                MultiByteToWideChar(CP_UTF8, 0, error.what(), -1, message.data(), size);
+            else
+                message = L"Неизвестная ошибка загрузки";
+
+            MessageBoxW(parent_, message.c_str(), L"Ошибка загрузки фигуры", MB_OK | MB_ICONERROR);
         }
     }
 }

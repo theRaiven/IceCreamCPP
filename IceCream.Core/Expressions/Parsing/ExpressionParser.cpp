@@ -244,6 +244,10 @@ namespace IceCream::Core::Expressions
                 if (name == "x") return [](double x, double, double) { return x; };
                 if (name == "y") return [](double, double y, double) { return y; };
                 if (name == "z") return [](double, double, double z) { return z; };
+                // Полярные и цилиндрические координаты
+                if (name == "r") return [](double x, double y, double) { return std::hypot(x, y); };
+                if (name == "phi") return [](double x, double y, double) { return x == 0.0 && y == 0.0 ? 0.0 : std::atan2(y, x); };
+
 
                 // Число Пи
                 if (name == "pi")
