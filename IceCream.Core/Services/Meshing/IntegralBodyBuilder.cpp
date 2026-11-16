@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <limits>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -134,7 +135,7 @@ namespace IceCream::Core::Services
                 }
             }
 
-            return {minimum, maximum};
+            return { minimum, maximum };
         }
     }
 
@@ -158,7 +159,7 @@ namespace IceCream::Core::Services
             if (source.AutoUpper)
             {
                 auto [minimum, maximum] = EstimateGraphRange(source);
-                double tolerance = 1e-12 * max({1.0, abs(minimum), abs(maximum)});
+                double tolerance = 1e-12 * max({ 1.0, abs(minimum), abs(maximum) });
 
                 if (maximum - minimum <= tolerance)
                 {
@@ -445,7 +446,7 @@ namespace IceCream::Core::Services
 
             bool Contains(Point point) const
             {
-                Values q{ {point.X, point.Y, point.Z} };
+                Values q{ { point.X, point.Y, point.Z } };
 
                 if (Part.Coordinates != CoordinateSystem::Cartesian)
                 {
@@ -515,6 +516,97 @@ namespace IceCream::Core::Services
         };
     }
 
+    namespace
+    {
+        struct RadialCap
+        {
+            size_t Part;
+            int Side;
+            double Height;
+            double Radius;
+            double AngleStart;
+            double AngleEnd;
+        };
+
+        // Recognize only full, concentric polar/cylindrical disks in a constant-Z plane.
+        // Arbitrary profiles, sectors and non-planar joins still use the old mesh path.
+        optional<RadialCap> FindRadialCap(const Compiled& part, size_t index, int side)
+        {
+            if (!part.Graph || part.Part.Coordinates != CoordinateSystem::Cylindrical ||
+                part.Part.Order != array<int, 3>{ {0, 1, 2} }) return nullopt;
+
+            Values end{ { 1.0, 0.0, static_cast<double>(side) } };
+            Values first = part.Map(end);
+            end[1] = 1.0;
+            Values last = part.Map(end);
+
+            double radius = first[0];
+            double angleStart = first[1], angleEnd = last[1];
+            double height = first[2];
+
+            if (!isfinite(radius) || radius <= 1e-8 ||
+                abs(angleEnd - angleStart - 2.0 * Pi) > 1e-8) return nullopt;
+
+            for (double r : {0.0, 0.25, 0.5, 0.75, 1.0})
+            {
+                for (double phi : {0.0, 0.25, 0.5, 0.75, 1.0})
+                {
+                    Values q = part.Map({ { r, phi, static_cast<double>(side) } });
+                    double scale = max({ 1.0, abs(height), abs(radius) });
+                    if (abs(q[0] - r * radius) > 1e-8 * scale ||
+                        abs(q[1] - (angleStart + phi * (angleEnd - angleStart))) > 1e-8 ||
+                        abs(q[2] - height) > 1e-8 * scale) return nullopt;
+                }
+            }
+
+            return RadialCap{ index, side, height, radius, angleStart, angleEnd };
+        }
+
+        vector<vector<double>> SharedRadialSampling(const vector<Compiled>& parts, int n)
+        {
+            vector<vector<double>> knots(parts.size());
+            vector<bool> paired(parts.size(), false);
+            vector<RadialCap> caps;
+
+            for (size_t i = 0; i < parts.size(); ++i)
+            {
+                for (int k = 0; k <= n; ++k) knots[i].push_back(static_cast<double>(k) / n);
+                for (int side = 0; side < 2; ++side)
+                {
+                    if (auto cap = FindRadialCap(parts[i], i, side)) caps.push_back(*cap);
+                }
+            }
+
+            for (size_t i = 0; i < caps.size(); ++i)
+            {
+                for (size_t j = i + 1; j < caps.size(); ++j)
+                {
+                    const auto& a = caps[i];
+                    const auto& b = caps[j];
+                    if (a.Part == b.Part || a.Side == b.Side || paired[a.Part] || paired[b.Part] ||
+                        abs(a.Height - b.Height) > 1e-8 * max({ 1.0, abs(a.Height), abs(b.Height) }) ||
+                        abs(a.AngleStart - b.AngleStart) > 1e-8 ||
+                        abs(a.AngleEnd - b.AngleEnd) > 1e-8) continue;
+
+                    const auto& outer = a.Radius > b.Radius ? a : b;
+                    const auto& inner = a.Radius > b.Radius ? b : a;
+                    if (outer.Radius - inner.Radius < 1e-8 * outer.Radius) continue;
+
+                    double join = inner.Radius / outer.Radius;
+                    int annulusSteps = max(1, static_cast<int>(ceil(n * (outer.Radius - inner.Radius) / inner.Radius)));
+                    vector<double> grid;
+                    grid.reserve(n + annulusSteps + 1);
+                    for (int k = 0; k <= n; ++k) grid.push_back(join * k / n);
+                    for (int k = 1; k <= annulusSteps; ++k) grid.push_back(join + (1.0 - join) * k / annulusSteps);
+                    knots[outer.Part] = move(grid);
+                    paired[a.Part] = paired[b.Part] = true;
+                }
+            }
+
+            return knots;
+        }
+    }
+
     IntegralSolid IntegralBodyBuilder::Build(const vector<IntegralPart>& parts, int n, int intervals) const
     {
         if (parts.empty() || parts.size() > 8)
@@ -567,8 +659,8 @@ namespace IceCream::Core::Services
                     {
                         for (double c : {0.2, 0.5, 0.8})
                         {
-                            if (compiled[i].Contains(compiled[j].World({ {a, b, c} })) ||
-                                compiled[j].Contains(compiled[i].World({ {a, b, c} })))
+                            if (compiled[i].Contains(compiled[j].World({ { a, b, c } })) ||
+                                compiled[j].Contains(compiled[i].World({ { a, b, c } })))
                             {
                                 throw invalid_argument("Части тела пересекаются. Задайте области, которые соприкасаются только по границе.");
                             }
@@ -577,6 +669,8 @@ namespace IceCream::Core::Services
                 }
             }
         }
+
+        const auto radialKnots = SharedRadialSampling(compiled, n);
 
         vector<Point> vertices;
         map<array<long long, 3>, int> welded;
@@ -618,7 +712,7 @@ namespace IceCream::Core::Services
 
                 if (abs(p.X) <= maxQuantizedCoordinate && abs(p.Y) <= maxQuantizedCoordinate && abs(p.Z) <= maxQuantizedCoordinate)
                 {
-                    array<long long, 3> key{ {llround(p.X * 1e8), llround(p.Y * 1e8), llround(p.Z * 1e8)} };
+                    array<long long, 3> key{ { llround(p.X * 1e8), llround(p.Y * 1e8), llround(p.Z * 1e8) } };
                     auto it = welded.find(key);
 
                     if (it != welded.end())
@@ -631,7 +725,7 @@ namespace IceCream::Core::Services
                     return id;
                 }
 
-                array<double, 3> key{ {p.X, p.Y, p.Z} };
+                array<double, 3> key{ { p.X, p.Y, p.Z } };
                 auto it = exactWelded.find(key);
 
                 if (it != exactWelded.end())
@@ -683,13 +777,13 @@ namespace IceCream::Core::Services
                             swap(b, c);
                         }
 
-                        array<int, 3> key{ {a, b, c} };
+                        array<int, 3> key{ { a, b, c } };
                         sort(key.begin(), key.end());
                         auto it = faces.find(key);
 
                         if (it == faces.end())
                         {
-                            faces.emplace(key, Face{ {{a, b, c}}, part });
+                            faces.emplace(key, Face{ { { a, b, c } }, part });
                         }
                         else
                         {
@@ -717,20 +811,22 @@ namespace IceCream::Core::Services
                 {
                     for (int side = 0; side < 2; ++side)
                     {
-                        for (int i = 0; i < n; ++i)
+                        int a = (axis + 1) % 3;
+                        int b = (axis + 2) % 3;
+                        int countA = a == 0 ? static_cast<int>(radialKnots[part].size()) - 1 : n;
+                        int countB = b == 0 ? static_cast<int>(radialKnots[part].size()) - 1 : n;
+                        for (int i = 0; i < countA; ++i)
                         {
-                            for (int j = 0; j < n; ++j)
+                            for (int j = 0; j < countB; ++j)
                             {
-                                int a = (axis + 1) % 3;
-                                int b = (axis + 2) % 3;
 
                                 Values t{};
                                 t[axis] = side;
 
                                 auto getVertex = [&](int x, int y) -> int
                                     {
-                                        t[a] = static_cast<double>(x) / n;
-                                        t[b] = static_cast<double>(y) / n;
+                                        t[a] = a == 0 ? radialKnots[part][x] : static_cast<double>(x) / n;
+                                        t[b] = b == 0 ? radialKnots[part][y] : static_cast<double>(y) / n;
                                         return vertex(current.World(t));
                                     };
 
@@ -798,16 +894,16 @@ namespace IceCream::Core::Services
         cone.Base = "3";
         cone.AboveFunction = true;
         cone.AutoUpper = true;
-        cone.Lower = { {"-1", "-sqrt(max(0,1-x^2))", "0"} };
-        cone.Upper = { {"1", "sqrt(max(0,1-x^2))", "3"} };
-        cone.Color = { {0.76f, 0.5f, 0.3f, 1.0f} };
+        cone.Lower = { { "-1", "-sqrt(max(0,1-x^2))", "0" } };
+        cone.Upper = { { "1", "sqrt(max(0,1-x^2))", "3" } };
+        cone.Color = { { 0.76f, 0.5f, 0.3f, 1.0f } };
 
         IntegralPart ice = cone;
         ice.Name = "Мороженое";
         ice.AboveFunction = false;
         ice.AutoUpper = false;
         ice.Function = "3+sqrt(max(0,1-x^2-y^2))";
-        ice.Color = { {0.6f, 0.85f, 0.35f, 1.0f} };
+        ice.Color = { { 0.6f, 0.85f, 0.35f, 1.0f } };
 
         return { cone, ice };
     }
