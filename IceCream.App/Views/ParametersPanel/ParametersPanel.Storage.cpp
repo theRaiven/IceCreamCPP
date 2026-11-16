@@ -275,7 +275,7 @@ namespace IceCream::App::Views
                 }
             }
 
-            activePage_ = 0;
+            activePage_ = FunctionsPage;
             constraintsOpen_ = !constraints.empty() && figure.Type != FigureType::Inequalities;
             scroll_ = 0;
             panelOpen_ = true;

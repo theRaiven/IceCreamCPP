@@ -81,15 +81,12 @@ namespace IceCream::App::Views
         content_ = CreateWindowExW(WS_EX_CONTROLPARENT, cls.lpszClassName, L"Блоки параметров",
             WS_CHILD | WS_VSCROLL | WS_CLIPCHILDREN, 0, 0, 1, 1, panel_, nullptr,
             cls.hInstance, this);
-        for (int i = 0; i < 4; ++i)
+        constexpr std::array<const wchar_t*, PageCount> captions{L"Функции", L"Сечение", L"Свет", L"Вид", L"Помощь"};
+        for (int i = 0; i < PageCount; ++i)
         {
-            HWND b = CreateWindowW(L"BUTTON",
-                i == 0 ? L"Функции"
-                : i == 1 ? L"Сечение"
-                : i == 2 ? L"Свет"
-                : L"Вид",
+            HWND b = CreateWindowW(L"BUTTON", captions[i],
                 WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 1, 1, panel_,
-                reinterpret_cast<HMENU>(static_cast<INT_PTR>(10 + i)), cls.hInstance, nullptr);
+                reinterpret_cast<HMENU>(static_cast<INT_PTR>(FirstTabId + i)), cls.hInstance, nullptr);
             SendMessageW(b, WM_SETFONT, reinterpret_cast<WPARAM>(font_), TRUE);
         }
         for (int i = 0; i < 6; ++i)
@@ -235,13 +232,13 @@ namespace IceCream::App::Views
                 fontSize_ = mainPixels;
             }
         }
-        const int tabPixels = Pixels(std::clamp(Logical(viewportTabsWidth_) / 18, ViewModels::AppearanceSettings::MinTextSize, textSize));
+        const int tabPixels = Pixels(std::clamp(Logical(viewportTabsWidth_) / 21, ViewModels::AppearanceSettings::MinTextSize, textSize));
         if (tabFontSize_ != tabPixels || !tabFont_)
         {
             if (HFONT next = CreatePanelFont(tabPixels))
             {
-                for (int i = 0; i < 4; ++i)
-                    SendMessageW(GetDlgItem(panel_, 10 + i), WM_SETFONT, reinterpret_cast<WPARAM>(next), FALSE);
+                for (int i = 0; i < PageCount; ++i)
+                    SendMessageW(GetDlgItem(panel_, FirstTabId + i), WM_SETFONT, reinterpret_cast<WPARAM>(next), FALSE);
                 DeleteObject(tabFont_);
                 tabFont_ = next;
                 tabFontSize_ = tabPixels;
@@ -264,17 +261,19 @@ namespace IceCream::App::Views
         if (!panelOpen_)
         {
             if (IsChild(content_, GetFocus()))
-                SetFocus(GetDlgItem(panel_, 10 + activePage_));
+                SetFocus(GetDlgItem(panel_, FirstTabId + activePage_));
             ShowWindow(content_, SW_HIDE);
         }
         MoveWindow(panel_, 0, 0, width, height, TRUE);
         const int margin = Pixels(8), gap = Pixels(4);
         const int space = std::max(0, tabsWidth - 2 * margin + gap);
-        for (int i = 0; i < 4; ++i)
+        // Reserve more space for the longer captions, including on the narrow drawer.
+        constexpr std::array<int, PageCount + 1> tabEdges{0, 23, 45, 61, 76, 100};
+        for (int i = 0; i < PageCount; ++i)
         {
-            const int left = margin + space * i / 4;
-            const int right = margin + space * (i + 1) / 4 - gap;
-            MoveWindow(GetDlgItem(panel_, 10 + i), left, margin, std::max(0, right - left),
+            const int left = margin + space * tabEdges[i] / tabEdges.back();
+            const int right = margin + space * tabEdges[i + 1] / tabEdges.back() - gap;
+            MoveWindow(GetDlgItem(panel_, FirstTabId + i), left, margin, std::max(0, right - left),
                 std::max(0, toolbar - 2 * margin), TRUE);
         }
         MoveWindow(content_, 0, toolbar, width, height - toolbar, panelOpen_);
@@ -415,7 +414,7 @@ namespace IceCream::App::Views
             hintFont_ = next;
             hintFontSize_ = size;
         }
-        if (activePage_ == 3)
+        if (activePage_ == AppearancePage)
         {
             wchar_t text[80];
             swprintf_s(text, L"Размер подсказок: %d px", a.HintSize);

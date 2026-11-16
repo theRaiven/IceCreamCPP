@@ -32,7 +32,9 @@ namespace IceCream::App::Views
         bool syncing_ = false, panelOpen_ = false;
         int geometryMode_ = 0; // 0: интегралы, 1: неявная поверхность, 2: тело по неравенствам
         bool constraintsOpen_ = false;
-        int activePage_ = 0;
+        enum Page { FunctionsPage, SectionPage, LightingPage, AppearancePage, HelpPage, PageCount };
+        static constexpr int FirstTabId = 10;
+        Page activePage_ = FunctionsPage;
         std::vector<Core::Services::IntegralPart> drafts_;
         void LoadDrafts();
         void StoreDrafts();
