@@ -95,6 +95,7 @@
     <ClCompile Include="Views\SectionView.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Resource.h" />
     <ClInclude Include="ViewModels\AppearanceSettings.h" />
     <ClInclude Include="ViewModels\MainViewModel.h" />
     <ClInclude Include="Views\Graphics\OrbitCamera\LightingSettings.h" />
@@ -113,9 +114,17 @@
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="IceCream.App.manifest" />
+    <None Include="Resources\IceCream.aps" />
     <None Include="Views\Shaders\Line.frag" />
     <None Include="Views\Shaders\Line.vert" />
     <None Include="Views\Shaders\Mesh.frag" />
     <None Include="Views\Shaders\Mesh.vert" />
+  </ItemGroup>
+</Project>
+  <ItemGroup>
+    <Image Include="Resources\IceCream.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="IceCream.rc" />
   </ItemGroup>
 </Project>

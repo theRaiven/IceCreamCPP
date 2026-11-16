@@ -93,6 +93,7 @@
     <ClInclude Include="Views\Graphics\OrbitCamera\LightingSettings.h" />
     <ClInclude Include="Views\Graphics\OrbitCamera\SectionCamera.h" />
     <ClInclude Include="Views\Graphics\Render\MeshNormals.h" />
+    <ClInclude Include="Resource.h" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="IceCream.App.manifest" />
@@ -108,5 +109,12 @@
     <None Include="Views\Shaders\Mesh.vert">
       <Filter>Views\Shaders</Filter>
     </None>
+    <None Include="Resources\IceCream.aps" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Resources\IceCream.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="IceCream.rc" />
   </ItemGroup>
 </Project>

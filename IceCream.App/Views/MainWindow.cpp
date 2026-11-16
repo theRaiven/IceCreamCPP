@@ -1,4 +1,6 @@
 #include "MainWindow.h"
+#include "../Resource.h"
+#include <Windows.h>
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -55,6 +57,38 @@ namespace IceCream::App::Views
             work.top + (work.bottom - work.top - windowHeight_) / 2);
         glutInitWindowSize(windowWidth_, windowHeight_);
         glutCreateWindow("IceCream");
+
+        HWND window = nullptr;
+
+        EnumThreadWindows(GetCurrentThreadId(), [](HWND hwnd, LPARAM param) -> BOOL
+            {
+                wchar_t title[128]{};
+                GetWindowTextW(hwnd, title, 128);
+
+                if (lstrcmpW(title, L"IceCream") != 0) return TRUE;
+
+                *reinterpret_cast<HWND*>(param) = hwnd;
+                return FALSE;
+
+            }, reinterpret_cast<LPARAM>(&window));
+
+        if (window)
+        {
+            HINSTANCE instance = GetModuleHandleW(nullptr);
+
+            HICON largeIcon = static_cast<HICON>(LoadImageW(
+                instance, MAKEINTRESOURCEW(IDI_ICECREAM), IMAGE_ICON,
+                GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0));
+
+            HICON smallIcon = static_cast<HICON>(LoadImageW(
+                instance, MAKEINTRESOURCEW(IDI_ICECREAM), IMAGE_ICON,
+                GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
+
+            if (largeIcon) SendMessageW(window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+            if (smallIcon) SendMessageW(window, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+        }
+
+
         glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
         glewExperimental = GL_TRUE;
